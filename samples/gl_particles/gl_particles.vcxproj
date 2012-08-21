@@ -90,8 +90,8 @@
   <ItemGroup>
     <CustomBuild Include="Simulate.cl">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)$(Configuration)\clu_generator.exe %(fullpath)</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)$(Configuration)\clu_generator.exe %(fullpath)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">"$(SolutionDir)$(Configuration)\clu_generator.exe" "%(fullpath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">"$(SolutionDir)$(Configuration)\clu_generator.exe" "%(fullpath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(filename).cl.h</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(filename).cl.h</Outputs>
     </CustomBuild>
