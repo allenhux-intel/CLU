@@ -55,7 +55,7 @@ vec3 ComputeColor(float in_speed)
 void main()
 {
     int particleIndex = int(in_pos.z);
-    vec4 particle = texelFetch(particlePosition, int(in_pos.z));
+    vec4 particle = texelFetch(particlePosition, particleIndex);
 
     vec4 quad = vec4(RADIUS*in_pos.xy,0,0);
     vec4 pos = (inverseMatrix*quad) + vec4(particle.xyz,1);

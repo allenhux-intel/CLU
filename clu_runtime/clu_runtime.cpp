@@ -113,15 +113,62 @@ static const char* OpenCLErrorCodeToString(cl_uint err)
 #define OCL_VALIDATE(in_status) (void)in_status
 #endif
 
-// internal device enumeration; also indices into runtime device array
-enum CLU_Device
+// cpu, gpu, accelerator, custom
+#define CLU_MAX_NUM_DEVICES 4
+
+//==============================================================================
+// class to convert a cl_device_type to an index into internal array
+//==============================================================================
+class DeviceTypeToId
 {
-    CLU_DEVICE_CPU,
-    CLU_DEVICE_GPU,
-    CLU_DEVICE_ACCELERATOR,
-    CLU_DEVICE_CUSTOM,
-    CLU_MAX_NUM_DEVICES
+public:
+    DeviceTypeToId();
+    void SetDevice(cl_device_type in_t, cl_device_id in_id);
+    void SetDefault(cl_device_type in_t);
+    cl_device_id GetDevice(cl_device_type in_t);
+    int GetIndexFromType(cl_device_type in_t);
+private:
+    int m_defaultDeviceIndex;
+    cl_device_id m_deviceIds[CLU_MAX_NUM_DEVICES];
 };
+
+DeviceTypeToId::DeviceTypeToId()
+{
+    memset(m_deviceIds, 0, sizeof(m_deviceIds));
+    m_defaultDeviceIndex = 0;
+}
+
+int DeviceTypeToId::GetIndexFromType(cl_device_type in_t)
+{
+    int index = 0;
+    // FIXME: could use a bit scan...
+    switch(in_t)
+    {
+    case CL_DEVICE_TYPE_CPU: index = 0; break;
+    case CL_DEVICE_TYPE_GPU: index = 1; break;
+    case CL_DEVICE_TYPE_ACCELERATOR: index = 2; break;
+    default:
+    case CL_DEVICE_TYPE_DEFAULT: index = m_defaultDeviceIndex; break;
+    };
+    return index;
+}
+
+void DeviceTypeToId::SetDevice(cl_device_type in_t, cl_device_id in_id)
+{
+    int index = GetIndexFromType(in_t);
+    m_deviceIds[index] = in_id;
+}
+
+void DeviceTypeToId::SetDefault(cl_device_type in_t)
+{
+    m_defaultDeviceIndex = GetIndexFromType(in_t);
+}
+
+cl_device_id DeviceTypeToId::GetDevice(cl_device_type in_t)
+{
+    int index = GetIndexFromType(in_t);
+    return m_deviceIds[index];
+}
 
 //==============================================================================
 // class to maintain internal runtime state
@@ -193,12 +240,13 @@ private:
     // Devices and map of devices to device type
     // support up to 4 queues (1 for each of 4 devices: cpu, gpu, accelerator, custom)
     cl_uint          m_numDevices;
-    cl_device_id     m_devices[CLU_MAX_NUM_DEVICES];
-    int              m_device_map[CLU_MAX_NUM_DEVICES];
-    // index of this type of device in array of devices (m_devices)
-    int MapTypeToDeviceIndex(cl_device_type in_clDeviceType);
-    // index of the default device within m_devices
-    int              m_defaultDeviceIndex;
+    
+    // WARNING: do not try to use this with cl_device_type!
+    // it is filled in at context creation time
+    // it is used for building programs and returning build errors
+    cl_device_id     m_deviceIds[CLU_MAX_NUM_DEVICES];
+
+    DeviceTypeToId   m_device_type_to_id;
     //---------------------------------------------------------------
 
     // storage for objects created by generated code
@@ -234,16 +282,10 @@ void CLU_Runtime::Reset()
 {
     m_context=0;
     m_numDevices=0;
-    m_defaultDeviceIndex = 0;
     m_queueProperties = 0;
     m_buildOptions.clear();
     memset(m_commandQueue, 0, sizeof(m_commandQueue));
-    memset(m_devices, 0, sizeof(m_devices));
-
-    for (int i = 0; i < CLU_MAX_NUM_DEVICES; i++)
-    {
-        m_device_map[i] = i;
-    }
+    memset(m_deviceIds, 0, sizeof(m_deviceIds));
 
     for (cluObjectIterator i = m_objects.begin(); i != m_objects.end(); i++)
     {
@@ -389,15 +431,19 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         // should have a platform now.
         assert(platform);
 
-        // FIXME: what if m_numDevices is greater than CLU_MAX_NUM_DEVICES?
-
-        // get # of devices
+        // get # of devices & device Ids
+        // here we have a platform, no context yet
         status = clGetDeviceIDs(platform, deviceType, 0, 0, &m_numDevices);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
         // get device IDs
-        status = clGetDeviceIDs(platform, deviceType, m_numDevices, m_devices, 0);
+        // clamp to CLU_MAX_NUM_DEVICES
+        if (m_numDevices > CLU_MAX_NUM_DEVICES)
+        {
+            m_numDevices = CLU_MAX_NUM_DEVICES;
+        }
+        status = clGetDeviceIDs(platform, deviceType, m_numDevices, m_deviceIds, 0);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -433,7 +479,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         ++propNum;
         properties[propNum] = (cl_context_properties)0;
 
-        m_context = clCreateContext(properties, m_numDevices, m_devices,
+        m_context = clCreateContext(properties, m_numDevices, m_deviceIds,
             0 /* callback */, 0 /* callback data */, &status);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
@@ -442,10 +488,18 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
     {
         clRetainContext(in_params.existing_context); // add a reference to the provided context
 
-        status = clGetContextInfo(m_context, CL_CONTEXT_NUM_DEVICES, sizeof(m_numDevices), &m_numDevices, 0);
+        // get # of devices & device Ids
+        // here, we have the context, not the platform
+        cl_int status = clGetContextInfo(m_context, CL_CONTEXT_NUM_DEVICES, sizeof(m_numDevices), &m_numDevices, 0);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
-        status = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, sizeof(m_devices), m_devices, 0);
+
+        // clamp to CLU_MAX_NUM_DEVICES
+        if (m_numDevices > CLU_MAX_NUM_DEVICES)
+        {
+            m_numDevices = CLU_MAX_NUM_DEVICES;
+        }
+        status = clGetContextInfo(m_context, CL_CONTEXT_DEVICES, m_numDevices * sizeof(cl_device_id), m_deviceIds, 0);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
     }
@@ -454,23 +508,17 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
     for (cl_uint d = 0; d < m_numDevices; d++)
     {
         cl_device_type deviceType;
-        status = clGetDeviceInfo(m_devices[d], CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, 0);
+        status = clGetDeviceInfo(m_deviceIds[d], CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceType, 0);
         OCL_VALIDATE(status);
 
         // usually device 0 is the default, but maybe this runtime explicitly sets this bit:
-        if (deviceType & CL_DEVICE_TYPE_DEFAULT)
+        if ((0 == d) || (deviceType & CL_DEVICE_TYPE_DEFAULT))
         {
-            m_defaultDeviceIndex = d;
-            deviceType ^= CL_DEVICE_TYPE_DEFAULT; // clear the bit
+            deviceType &= ~CL_DEVICE_TYPE_DEFAULT; // clear the bit
+            m_device_type_to_id.SetDefault(deviceType);
         }
 
-        switch (deviceType)
-        {
-        case CL_DEVICE_TYPE_CPU:         m_device_map[CLU_DEVICE_CPU] = d; break;
-        case CL_DEVICE_TYPE_GPU:         m_device_map[CLU_DEVICE_GPU] = d; break;
-        case CL_DEVICE_TYPE_ACCELERATOR: m_device_map[CLU_DEVICE_ACCELERATOR] = d; break;
-        default:                         m_device_map[CLU_DEVICE_CUSTOM] = d;
-        } // end switch on device type
+        m_device_type_to_id.SetDevice(deviceType, m_deviceIds[d]);
     }
 
     AddObject(m_context);
@@ -482,30 +530,12 @@ exit:
     return status;
 }
 
-//-----------------------------------------------------------------------------
-// frequently used utility
-//-----------------------------------------------------------------------------
-int CLU_Runtime::MapTypeToDeviceIndex(cl_device_type in_clDeviceType)
-{
-    int cluDeviceIndex = 0;
-    switch (in_clDeviceType)
-    {
-    case CL_DEVICE_TYPE_DEFAULT:     cluDeviceIndex = m_defaultDeviceIndex; break;
-    case CL_DEVICE_TYPE_CPU:         cluDeviceIndex = m_device_map[CLU_DEVICE_CPU]; break;
-    case CL_DEVICE_TYPE_GPU:         cluDeviceIndex = m_device_map[CLU_DEVICE_GPU]; break;
-    case CL_DEVICE_TYPE_ACCELERATOR: cluDeviceIndex = m_device_map[CLU_DEVICE_ACCELERATOR]; break;
-    default:                         cluDeviceIndex = m_device_map[CLU_DEVICE_CUSTOM];
-    }
-    return cluDeviceIndex;
-}
-
 //------------------------------------------------------------------------
 // return cl_device from in_clDeviceType
 //------------------------------------------------------------------------
 cl_device_id CLU_Runtime::GetDevice(cl_device_type in_clDeviceType)
 {
-    int index = MapTypeToDeviceIndex(in_clDeviceType);
-    return m_devices[index];
+    return m_device_type_to_id.GetDevice(in_clDeviceType);
 }
 
 //-----------------------------------------------------------------------------
@@ -514,15 +544,19 @@ cl_device_id CLU_Runtime::GetDevice(cl_device_type in_clDeviceType)
 cl_command_queue CLU_Runtime::GetCommandQueue(cl_device_type in_clDeviceType, cl_int* out_status)
 {
     cl_int status = CL_SUCCESS;
-    int index = MapTypeToDeviceIndex(in_clDeviceType);
-    cl_command_queue q = CLU_Runtime::Get().m_commandQueue[index];
+    int index = m_device_type_to_id.GetIndexFromType(in_clDeviceType);
+    cl_command_queue q = m_commandQueue[index];
     if (0 == q)
     {
-        q = clCreateCommandQueue(m_context, m_devices[index], m_queueProperties, &status);
+        cl_device_id deviceId = m_device_type_to_id.GetDevice(in_clDeviceType);
+        q = clCreateCommandQueue(m_context, deviceId, m_queueProperties, &status);
         OCL_VALIDATE(status);
 
-        m_commandQueue[index] = q;
-        AddObject(q);
+        if (q)
+        {
+            m_commandQueue[index] = q;
+            AddObject(q);
+        }
     }
 
     if (out_status)
@@ -545,7 +579,7 @@ const char* CLU_Runtime::GetBuildErrors(cl_program in_program)
         // get build log size
         size_t buildLogSize = 0;
         cl_int status = clGetProgramBuildInfo(
-            in_program, m_devices[d], CL_PROGRAM_BUILD_LOG,
+            in_program, m_deviceIds[d], CL_PROGRAM_BUILD_LOG,
             0, 0, &buildLogSize);
         OCL_VALIDATE(status);
 
@@ -554,7 +588,7 @@ const char* CLU_Runtime::GetBuildErrors(cl_program in_program)
 
         // get the build log
         status = clGetProgramBuildInfo(
-            in_program, m_devices[d], CL_PROGRAM_BUILD_LOG, 
+            in_program, m_deviceIds[d], CL_PROGRAM_BUILD_LOG, 
             buildLogSize, buildLog, 0);
         OCL_VALIDATE(status);
 
@@ -612,7 +646,7 @@ cl_program CLU_Runtime::BuildProgram(
     cl_program program = clCreateProgramWithSource(context, in_numStrings, in_strings, in_string_lengths, &status);
     OCL_VALIDATE(status);
 
-    status = clBuildProgram(program, m_numDevices, m_devices, in_buildOptions, 0, 0);
+    status = clBuildProgram(program, m_numDevices, m_deviceIds, in_buildOptions, 0, 0);
     OCL_VALIDATE(status);
 
     if (out_pStatus)
