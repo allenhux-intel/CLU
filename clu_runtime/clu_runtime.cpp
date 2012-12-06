@@ -41,6 +41,8 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <string>
 #include <map>
 #include <sstream>
+
+#include <string.h> // gcc needs this for memset
 #include "clu.h"
 
 #ifdef _DEBUG
@@ -257,9 +259,9 @@ private:
 // overloaded template definitions for the virtual destructors for
 // all the kinds of things that the runtime might hold internal references to:
 //-----------------------------------------------------------------------------
-CLU_Runtime::CLU_Specific<cl_context>::~CLU_Specific()       {clReleaseContext(m_o);}
-CLU_Runtime::CLU_Specific<cl_command_queue>::~CLU_Specific() {clReleaseCommandQueue(m_o);}
-CLU_Runtime::CLU_Specific<cl_program>::~CLU_Specific()       {clReleaseProgram(m_o);}
+template<> CLU_Runtime::CLU_Specific<cl_context>::~CLU_Specific()       {clReleaseContext(m_o);}
+template<> CLU_Runtime::CLU_Specific<cl_command_queue>::~CLU_Specific() {clReleaseCommandQueue(m_o);}
+template<> CLU_Runtime::CLU_Specific<cl_program>::~CLU_Specific()       {clReleaseProgram(m_o);}
 
 //-----------------------------------------------------------------------------
 // global object
@@ -354,7 +356,7 @@ cl_platform_id GetPlatformByVendor(cl_uint in_numPlatforms, const cl_platform_id
     cl_uint i = 0;
     for (; i < in_numPlatforms; ++i) 
     {
-        cl_int status = clGetPlatformInfo(in_platforms[i], CL_PLATFORM_VENDOR, BUFSIZE, pBuf, NULL);
+        cl_int status = clGetPlatformInfo(in_platforms[i], CL_PLATFORM_VENDOR, BUFSIZE, pBuf, 0);
         OCL_VALIDATE(status);
         *out_pStatus = status;
 
@@ -397,7 +399,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         // create default context and default queues (per device)
         // find an OCL device on this platform
         cl_uint numPlatforms;
-        status = clGetPlatformIDs(0, NULL, &numPlatforms);
+        status = clGetPlatformIDs(0, 0, &numPlatforms);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -411,7 +413,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
             goto exit;
         }
         // get the platform ids
-        status = clGetPlatformIDs(numPlatforms, platforms, NULL);
+        status = clGetPlatformIDs(numPlatforms, platforms, 0);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -927,11 +929,11 @@ const char* CLU_GetPlatformInfo(cl_int* out_pStatus)
     s.clear();
 
     cl_uint numPlatforms = 0;
-    cl_int status = clGetPlatformIDs(0, NULL, &numPlatforms);
+    cl_int status = clGetPlatformIDs(0, 0, &numPlatforms);
     OCL_VALIDATE(status);
 
     cl_platform_id* platforms = new cl_platform_id[numPlatforms];
-    status = clGetPlatformIDs(numPlatforms, platforms, NULL);
+    status = clGetPlatformIDs(numPlatforms, platforms, 0);
     OCL_VALIDATE(status);
 
     s += "-----------------------------------------------------------------------\n";
@@ -944,11 +946,11 @@ const char* CLU_GetPlatformInfo(cl_int* out_pStatus)
     
     for(unsigned int i=0;i<numPlatforms;i++)
     {
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformProfile, NULL);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VERSION,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformVersion, NULL);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME,       CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformName,    NULL);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR,     CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformVendor,  NULL);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_EXTENSIONS, CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE, platformInfo.platformExtensions, NULL);
+        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformProfile, 0);
+        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VERSION,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformVersion, 0);
+        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME,       CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformName,    0);
+        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR,     CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformVendor,  0);
+        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_EXTENSIONS, CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE, platformInfo.platformExtensions, 0);
 
         s += "***********************************************************************\n";
         s += "\t\tDetails for platform " + cluToString(i+1) + " of " + cluToString(numPlatforms) + ": " + platformInfo.platformVendor + "\n";
@@ -1081,12 +1083,12 @@ const char* CLU_GetDeviceInfo(cl_int* out_pStatus)
     cl_uint numPlatforms = 0;
     
     //first we need to get the number of devices on the platform
-    status = clGetPlatformIDs(0, NULL, &numPlatforms);
+    status = clGetPlatformIDs(0, 0, &numPlatforms);
     OCL_VALIDATE(status);
 
     cl_platform_id* platforms = new cl_platform_id[numPlatforms];
 
-    status = clGetPlatformIDs(numPlatforms, platforms, NULL);
+    status = clGetPlatformIDs(numPlatforms, platforms, 0);
     OCL_VALIDATE(status);
 
     s += "***********************************************************************\n";
@@ -1102,84 +1104,84 @@ const char* CLU_GetDeviceInfo(cl_int* out_pStatus)
 
         //frist, query this platform for the number of devices
         
-        status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, NULL, NULL, &numDevices);
+        status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, 0, &numDevices);
         OCL_VALIDATE(status);
 
         cl_device_id* localDevices = new cl_device_id[numDevices];
-        status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, localDevices, NULL);
+        status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, localDevices, 0);
         OCL_VALIDATE(status);
 
         for(cl_uint j=0;j<numDevices;j++)
         {
             DeviceInfo deviceInfo;
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceInfo.devType, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceInfo.devType, 0);
             
 
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_VENDOR_ID, sizeof(cl_device_type), &deviceInfo.vendor_id, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_VENDOR_ID, sizeof(cl_device_type), &deviceInfo.vendor_id, 0);
 
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceInfo.max_compute_units, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceInfo.max_work_item_dims, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_ITEM_SIZES, (sizeof(size_t)*3), &deviceInfo.max_work_items_per_dimension, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(cl_uint), &deviceInfo.max_wg_size, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceInfo.max_compute_units, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceInfo.max_work_item_dims, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_ITEM_SIZES, (sizeof(size_t)*3), &deviceInfo.max_work_items_per_dimension, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(cl_uint), &deviceInfo.max_wg_size, 0);
 
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_preferred_vector_width_char, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_short, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_int, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_long, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_float, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_half, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_preferred_vector_width_char, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_short, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_int, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_long, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_float, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_half, 0);
             
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_native_vector_width_char, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_short, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_int, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_native_vector_width_long, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_float, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_native_vector_width_half, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_native_vector_width_char, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_short, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_int, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_native_vector_width_long, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_float, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_native_vector_width_half, 0);
             
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceInfo.max_clock_frequency, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &deviceInfo.address_bits, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &deviceInfo.max_mem_alloc_size, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceInfo.max_clock_frequency, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &deviceInfo.address_bits, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &deviceInfo.max_mem_alloc_size, 0);
             
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceInfo.image_support, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_READ_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_read_image_args, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WRITE_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_write_image_args, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE2D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image2d_max_width, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE2D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image2d_max_height, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image3d_max_width, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image3d_max_height, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_DEPTH, sizeof(size_t), &deviceInfo.image3d_max_depth, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_SAMPLERS, sizeof(cl_uint), &deviceInfo.max_samplers, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceInfo.image_support, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_READ_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_read_image_args, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WRITE_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_write_image_args, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE2D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image2d_max_width, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE2D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image2d_max_height, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image3d_max_width, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image3d_max_height, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_DEPTH, sizeof(size_t), &deviceInfo.image3d_max_depth, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_SAMPLERS, sizeof(cl_uint), &deviceInfo.max_samplers, 0);
 
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(size_t), &deviceInfo.max_parameter_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceInfo.mem_base_addr_align, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE, sizeof(cl_uint), &deviceInfo.min_data_type_align_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_SINGLE_FP_CONFIG, sizeof(cl_device_fp_config), &deviceInfo.single_fp_config, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHE_TYPE, sizeof(cl_device_mem_cache_type), &deviceInfo.global_mem_cache_type, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceInfo.global_mem_cacheline_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_cache_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &deviceInfo.constant_buffer_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(cl_uint), &deviceInfo.max_constant_args, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_LOCAL_MEM_TYPE, sizeof(cl_device_local_mem_type), &deviceInfo.local_mem_type, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.local_mem_size, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool), &deviceInfo.error_correction_support, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(size_t), &deviceInfo.max_parameter_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceInfo.mem_base_addr_align, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE, sizeof(cl_uint), &deviceInfo.min_data_type_align_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_SINGLE_FP_CONFIG, sizeof(cl_device_fp_config), &deviceInfo.single_fp_config, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHE_TYPE, sizeof(cl_device_mem_cache_type), &deviceInfo.global_mem_cache_type, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceInfo.global_mem_cacheline_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_cache_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &deviceInfo.constant_buffer_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(cl_uint), &deviceInfo.max_constant_args, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_LOCAL_MEM_TYPE, sizeof(cl_device_local_mem_type), &deviceInfo.local_mem_type, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.local_mem_size, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool), &deviceInfo.error_correction_support, 0);
             
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(cl_bool), &deviceInfo.unified_memory, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(size_t), &deviceInfo.profiling_timer_resolution, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_ENDIAN_LITTLE, sizeof(cl_bool), &deviceInfo.endian_little, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_AVAILABLE, sizeof(cl_bool), &deviceInfo.device_available, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_COMPILER_AVAILABLE, sizeof(cl_bool), &deviceInfo.compiler_available, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_EXECUTION_CAPABILITIES, sizeof(cl_device_exec_capabilities), &deviceInfo.device_capabilities, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_QUEUE_PROPERTIES, sizeof(cl_command_queue_properties), &deviceInfo.queue_properties, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &deviceInfo.platform_id, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(cl_bool), &deviceInfo.unified_memory, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(size_t), &deviceInfo.profiling_timer_resolution, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_ENDIAN_LITTLE, sizeof(cl_bool), &deviceInfo.endian_little, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_AVAILABLE, sizeof(cl_bool), &deviceInfo.device_available, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_COMPILER_AVAILABLE, sizeof(cl_bool), &deviceInfo.compiler_available, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_EXECUTION_CAPABILITIES, sizeof(cl_device_exec_capabilities), &deviceInfo.device_capabilities, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_QUEUE_PROPERTIES, sizeof(cl_command_queue_properties), &deviceInfo.queue_properties, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &deviceInfo.platform_id, 0);
             
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NAME, (sizeof(char)*256), &deviceInfo.device_name, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_VENDOR, (sizeof(char)*256), &deviceInfo.device_vendor, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DRIVER_VERSION, (sizeof(char)*256), &deviceInfo.driver_version, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PROFILE, (sizeof(char)*256), &deviceInfo.device_profile, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_VERSION, (sizeof(char)*256), &deviceInfo.device_version, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_OPENCL_C_VERSION, (sizeof(char)*256), &deviceInfo.opencl_c_version, NULL);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_EXTENSIONS, (sizeof(char)*256*128), &deviceInfo.extensions, NULL);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_NAME, (sizeof(char)*256), &deviceInfo.device_name, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_VENDOR, (sizeof(char)*256), &deviceInfo.device_vendor, 0);
+            clGetDeviceInfo(localDevices[j], CL_DRIVER_VERSION, (sizeof(char)*256), &deviceInfo.driver_version, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_PROFILE, (sizeof(char)*256), &deviceInfo.device_profile, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_VERSION, (sizeof(char)*256), &deviceInfo.device_version, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_OPENCL_C_VERSION, (sizeof(char)*256), &deviceInfo.opencl_c_version, 0);
+            clGetDeviceInfo(localDevices[j], CL_DEVICE_EXTENSIONS, (sizeof(char)*256*128), &deviceInfo.extensions, 0);
 
             s += "***********************************************************************\n";
             s += "\t\tPlatform: " + cluToString(i) + ", Device " + cluToString(j+1) + " of " + cluToString(numDevices) + ", Type: ";
