@@ -165,6 +165,15 @@ INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
     return p;
 }
 
+/* allocate host memory aligned for optimal access and create a buffer using it */
+/* aligned memory freed when cl_mem released via clSetMemObjectDestructorCallback() */
+extern CLU_API_ENTRY cl_mem CLU_API_CALL
+cluCreateAlignedBuffer(
+               cl_mem_flags flags        /* NULL = read/write */,
+               size_t       size,
+               void**       out_host_ptr /* may be NULL */,
+               cl_int*      errcode_ret  /* may be NULL */);
+
 /********************************************************************************************************/
 /* CLU Utility Funtions
 /********************************************************************************************************/

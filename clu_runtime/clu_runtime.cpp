@@ -198,6 +198,9 @@ public:
     cl_bool      GetIsInitialized()              {if (m_isInitialized) return CL_TRUE; return CL_FALSE;}
     const char*  GetBuildOptions()               {return m_buildOptions.c_str();}
 
+    // max buffer alignment across all devices in context
+    cl_uint      GetBufferAlignment();
+
     // used by code generator: build and has program on first call,
     // subsequently return hashed program
     cl_program   HashProgram(cl_uint in_numStrings,
@@ -216,6 +219,7 @@ private:
     cl_command_queue m_commandQueue[CLU_MAX_NUM_DEVICES];
     cl_command_queue_properties m_queueProperties;
     std::string      m_buildOptions;
+    cl_uint          m_bufferAlignment; // max buffer alignment across all devices in context
 
     //---------------------------------------------------------------
     // any object allocated by runtime is managed by the runtime
@@ -285,6 +289,7 @@ void CLU_Runtime::Reset()
     m_context=0;
     m_numDevices=0;
     m_queueProperties = 0;
+    m_bufferAlignment = 0;
     m_buildOptions.clear();
     memset(m_commandQueue, 0, sizeof(m_commandQueue));
     memset(m_deviceIds, 0, sizeof(m_deviceIds));
@@ -657,6 +662,31 @@ cl_program CLU_Runtime::BuildProgram(
     }
 
     return program;
+}
+
+//-----------------------------------------------------------------------------
+// find max buffer alignment across all devices in context
+//-----------------------------------------------------------------------------
+cl_uint CLU_Runtime::GetBufferAlignment()
+{
+    if (0 == m_bufferAlignment)
+    {
+        cl_uint numDevices = 0;
+        clGetContextInfo(CLU_CONTEXT, CL_CONTEXT_NUM_DEVICES, sizeof(cl_uint), &numDevices, 0);
+        cl_device_id* pDevices = new cl_device_id[numDevices];
+        clGetContextInfo(CLU_CONTEXT, CL_CONTEXT_DEVICES, sizeof(cl_device_id)*numDevices, pDevices, 0);
+        for (cl_uint i = 0; i < numDevices; i++)
+        {
+            cl_uint deviceAlign = 0;
+            clGetDeviceInfo(pDevices[i], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceAlign, 0);
+            if (deviceAlign > m_bufferAlignment)
+            {
+                m_bufferAlignment = deviceAlign;
+            }
+        }
+        delete [] pDevices;
+    }
+    return m_bufferAlignment;
 }
 
 //**********************************************************************************
@@ -1414,4 +1444,54 @@ const char* CLU_API_CALL cluGetDeviceInfo(cl_int* out_pStatus)
         *out_pStatus = status;
     }
     return info;
+}
+
+//-----------------------------------------------------------------------------
+// release a buffer and its aligned host memory
+// (expects created with cluCreateAlignedBuffer)
+//-----------------------------------------------------------------------------
+void CL_CALLBACK CLU_ReleaseAlignedBufferCallback(cl_mem in_buffer, void* in_pHostPtr)
+{
+    _aligned_free(in_pHostPtr);
+}
+
+//-----------------------------------------------------------------------------
+// allocate host memory aligned for optimal access and create a buffer using it
+//-----------------------------------------------------------------------------
+cl_mem CLU_API_CALL cluCreateAlignedBuffer(
+    cl_mem_flags in_flags,
+    size_t in_size,
+    void** out_pPtr,
+    cl_int* out_pStatus)
+{
+    cl_mem mem = 0;
+    try
+    {
+        cl_uint alignment = CLU_Runtime::Get().GetBufferAlignment();
+        void* pMem = _aligned_malloc(in_size, alignment);
+        if ((0 == pMem) && (out_pStatus))
+        {
+            *out_pStatus = CL_INVALID_VALUE;
+        }
+        else
+        {
+            mem = clCreateBuffer(CLU_CONTEXT, in_flags | CL_MEM_USE_HOST_PTR, in_size, pMem, out_pStatus);
+        }
+        if (mem)
+        {
+            cl_int status = clSetMemObjectDestructorCallback(mem, CLU_ReleaseAlignedBufferCallback, pMem);
+            if (out_pPtr)
+            {
+                *out_pPtr = pMem;
+            }
+        }
+        else
+        {
+            _aligned_free(pMem);
+        }
+    }
+    catch (...)
+    {
+    }
+    return mem;
 }
