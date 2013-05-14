@@ -10,21 +10,7 @@ const int numElements = 32;
 
 int main(void)
 {
-    // TODO:
-    // Work in progress. Need a C++ build mode that constructs
-    // the kernel directly
-    // In C++ mode no need to include clu.h into the header?
-    cl_int status;
-    //cl::Program vectorAddProgram(clugGet_CPPVectorAddKernel_cl_h(&status));
-    clug_vectorAdd cv = clugCreate_vectorAdd(&status); 
-    
-    // No overload takes a cl_kernel? hmm
-    auto vectorAddKernel = 
-        cl::make_kernel<
-            cl::Buffer&,
-            cl::Buffer&,
-            cl::Buffer&
-            >(cv.m_kernel);
+    auto vectorAddKernel = clugCreate_vectorAdd();
 
     std::vector<int> inputA(numElements, 1);
     std::vector<int> inputB(numElements, 2);

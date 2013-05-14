@@ -9,7 +9,7 @@ set(CPPVECTORADD_HEADERS
 
 add_custom_command(
 	OUTPUT CPPVectorAddKernel.cl.h
-	COMMAND clu_generator CPPVectorAddKernel.cl
+	COMMAND clu_generator -cpp CPPVectorAddKernel.cl
 	DEPENDS CPPVectorAddKernel.cl
 	COMMENT "Generating through CLU ..."
 	WORKING_DIRECTORY "${CLU_SOURCE_DIR}/samples/CPP/")
@@ -28,4 +28,4 @@ add_executable(CPPVectorAdd ${CPPVECTORADD_SOURCES} ${CPPVECTORADD_HEADERS})
 add_dependencies(CPPVectorAdd 
 	clu_generator
 	clu_runtime)
-target_link_libraries( CPPVectorAdd OpenCL.lib ) 
+target_link_libraries( CPPVectorAdd OpenCL.lib clu_runtime ) 
