@@ -576,7 +576,7 @@ public:
     void operator() (const KernelStrings& in_kernelStrings)
     {
         const string& name = in_kernelStrings.m_kernelName;
-        m_outFile << "    cl::Program " CLU_PREFIX_CREATE << name << "(cl_int*)" << endl;
+        m_outFile << "    cl::Program " CLU_PREFIX_CREATE << name << "(cl::Context creationContext = cl::Context::getDefault())" << endl;
     }
 };
 
@@ -697,7 +697,7 @@ public:
             m_outFile << ", " << endl << "    " << paramType;
         }
         m_outFile << endl <<
-            "    )> " << endl << createName << "() " << endl << "{" << endl;
+            "    )> " << endl << createName << "(cl::Context creationContext = cl::Context::getDefault()) " << endl << "{" << endl;
         m_outFile << 
             "    std::function<cl::Event (";
         m_outFile << endl << "        const cl::EnqueueArgs&";
@@ -717,7 +717,7 @@ public:
                 m_outFile << ", ";
             }
         }
-        m_outFile << ">" << endl << "            (" << m_getProgramName << "(), \"" << kernelName << "\"));" << endl; 
+        m_outFile << ">" << endl << "            (" << m_getProgramName << "(creationContext), \"" << kernelName << "\"));" << endl; 
         m_outFile << "    return kernelFunctor;" << endl << "}" << endl << endl;
 
         // custom function for enqueue of kernel
@@ -869,7 +869,7 @@ void GenerateWrappers(const string& in_inFileName, const string& in_outFileName,
 
         // function to build program from stringified sources
         outFile <<
-            "cl::Program " << getProgramName << "()" << endl <<
+            "cl::Program " << getProgramName << "(const cl::Context &creationContext)" << endl <<
             "{" << endl <<
             "    static const char* src[" << sources.size() << "] = {";
 
@@ -889,7 +889,7 @@ void GenerateWrappers(const string& in_inFileName, const string& in_outFileName,
         }
         outFile << ");" << endl;
         outFile <<
-            "    cl::Program program = cl::Program(cl::Context::getDefault(), sourceList);" << endl <<
+            "    cl::Program program = cl::Program(creationContext, sourceList);" << endl <<
             "    program.build();" << endl <<
             "    return program;" << endl <<
             "}" << endl << endl;

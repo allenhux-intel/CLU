@@ -7,7 +7,7 @@ Typical Usage:
         cl::EnqueueArgs(cl::NDRange(numElements), cl::NDRange(numElements)), ...);
 
 Exports:
-    cl::Program clugCreate_vectorAdd(cl_int*)
+    cl::Program clugCreate_vectorAdd(cl::Context creationContext = cl::Context::getDefault())
 */
 
 #include <CL/cl.hpp>
@@ -15,7 +15,7 @@ Exports:
 #ifndef __CPPVectorAddKernel_cl_h
 #define __CPPVectorAddKernel_cl_h
 
-cl::Program clugGet_CPPVectorAddKernel_cl_h()
+cl::Program clugGet_CPPVectorAddKernel_cl_h(const cl::Context &creationContext)
 {
     static const char* src[1] = {
     /* 1*/ "kernel void vectorAdd(global const int *inputA, global const int *inputB, global int *output)\n"
@@ -26,7 +26,7 @@ cl::Program clugGet_CPPVectorAddKernel_cl_h()
     cl::Program::Sources sourceList;
     sourceList.push_back(
         std::pair<const char*, ::size_t>(src[0], strlen(src[0])));
-    cl::Program program = cl::Program(cl::Context::getDefault(), sourceList);
+    cl::Program program = cl::Program(creationContext, sourceList);
     program.build();
     return program;
 }
@@ -37,7 +37,7 @@ std::function<cl::Event (
     cl::Buffer &, 
     cl::Buffer &
     )> 
-clugCreate_vectorAdd() 
+clugCreate_vectorAdd(cl::Context creationContext = cl::Context::getDefault()) 
 {
     std::function<cl::Event (
         const cl::EnqueueArgs&, 
@@ -48,7 +48,7 @@ clugCreate_vectorAdd()
             cl::Buffer &, 
             cl::Buffer &, 
             cl::Buffer &>
-            (clugGet_CPPVectorAddKernel_cl_h(), "vectorAdd"));
+            (clugGet_CPPVectorAddKernel_cl_h(creationContext), "vectorAdd"));
     return kernelFunctor;
 }
 
