@@ -52,10 +52,10 @@
     <ClCompile Include="RenderGL.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\lib\glew-1.7.0\src\glew.c">
+    <ClCompile Include="..\..\clu_runtime\clu_runtime.cpp">
       <Filter>libraries</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\clu_runtime\clu_runtime.cpp">
+    <ClCompile Include="..\lib\glew-1.7.0\src\glew.c">
       <Filter>libraries</Filter>
     </ClCompile>
   </ItemGroup>

@@ -16,6 +16,10 @@ RenderGL::RenderGL()
 void* LoadBMPFileAlphaOnly(char* pFilename, int& out_width, int& out_height)
 {
     FILE* fh = fopen(pFilename, "rb");
+    if( fh==NULL ) {
+        MessageBox(0, "Cannot open bitmap, please ensure that working directory is set correctly.\n", "Build Error", MB_OK);
+        exit(-1);
+    }
 
     BITMAPFILEHEADER fileHeader;
     fread(&fileHeader, 1, sizeof(BITMAPFILEHEADER), fh);

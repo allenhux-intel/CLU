@@ -570,11 +570,12 @@ class WriteCPPExports
 {
 private:
     ofstream& m_outFile;
-    WriteCPPExports& operator = (const WriteExports&) {return *this;} // unused, removes compile warning
+    WriteCPPExports& operator = (const WriteCPPExports&) {return *this;} // unused, removes compile warning
 public:
     WriteCPPExports(ofstream& out_file) : m_outFile(out_file) {}
     void operator() (const KernelStrings& in_kernelStrings)
     {
+        // Output definition of function that returns the std::function interface to the kernel
         const string& name = in_kernelStrings.m_kernelName;
         m_outFile << "    cl::Program " CLU_PREFIX_CREATE << name << "(cl::Context creationContext = cl::Context::getDefault())" << endl;
     }
@@ -708,7 +709,7 @@ public:
             m_outFile << ", " << endl << "        " << paramType;
         }
         m_outFile << ")> " << endl << "        kernelFunctor(cl::make_kernel<";
-            
+        // Output param type list for the make_kernel entity.
         for (unsigned int i = 0; i < kernelParams.size(); i++)
         {
             std::string paramType(kernelParams[i].m_type);

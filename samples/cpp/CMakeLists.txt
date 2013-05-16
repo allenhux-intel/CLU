@@ -5,7 +5,7 @@ set(CPPVECTORADD_SOURCES
 
 set(CPPVECTORADD_HEADERS
 	CPPVectorAddKernel.cl
-	CPPVectorAddKernel.cl.h)	
+	${CLU_SOURCE_DIR}/samples/CPP/CPPVectorAddKernel.cl.h)	
 
 add_custom_command(
 	OUTPUT CPPVectorAddKernel.cl.h

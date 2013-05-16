@@ -5,7 +5,7 @@ set(SIMPLE_SOURCES
 
 set(SIMPLE_HEADERS
 	simple.cl
-	simple.cl.h)	
+	${CLU_SOURCE_DIR}/simple/simple.cl.h)	
 
 add_custom_command(
 	OUTPUT simple.cl.h
