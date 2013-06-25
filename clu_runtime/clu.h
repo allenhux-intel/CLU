@@ -138,6 +138,18 @@ extern CLU_API_ENTRY cl_program CLU_API_CALL
 cluBuildSourceFromFile(const char* file_name,
                        cl_int*     errcode_ret); /* may be NULL */
 
+/* allocate host memory aligned for optimal access and create a buffer using it */
+/* aligned memory freed when cl_mem released via clSetMemObjectDestructorCallback() */
+extern CLU_API_ENTRY cl_mem CLU_API_CALL
+cluCreateAlignedBuffer(cl_mem_flags flags        /* 0 = read/write */,
+                       size_t       size,
+                       void**       out_host_ptr /* may be NULL */,
+                       cl_int*      errcode_ret  /* may be NULL */);
+
+/* return a string from an OpenCL return code, e.g. CL_SUCCESS returns "CL_SUCCESS" */
+extern CLU_API_ENTRY const char* CLU_API_CALL
+cluErrorToString(cl_int error);
+
 /********************************************************************************************************/
 /* APIs INLINEd for performance
 /********************************************************************************************************/
@@ -164,15 +176,6 @@ INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
     clu_enqueue_params p = {0};
     return p;
 }
-
-/* allocate host memory aligned for optimal access and create a buffer using it */
-/* aligned memory freed when cl_mem released via clSetMemObjectDestructorCallback() */
-extern CLU_API_ENTRY cl_mem CLU_API_CALL
-cluCreateAlignedBuffer(
-               cl_mem_flags flags        /* NULL = read/write */,
-               size_t       size,
-               void**       out_host_ptr /* may be NULL */,
-               cl_int*      errcode_ret  /* may be NULL */);
 
 /********************************************************************************************************/
 /* CLU Utility Funtions

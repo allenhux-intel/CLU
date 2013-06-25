@@ -41,14 +41,14 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <string>
 #include <map>
 #include <sstream>
+#include <iostream>
 
 #include <string.h> // gcc needs this for memset
 #include "clu.h"
 
-#ifdef _DEBUG
-static const char* OpenCLErrorCodeToString(cl_uint err)
+const char* CLU_API_CALL cluErrorToString(cl_int errcode_ret)
 {
-    switch (err) {
+    switch (errcode_ret) {
 #define OPENCLERRORCODETOSTRING_CASE(X) case X : return #X;
     OPENCLERRORCODETOSTRING_CASE(CL_SUCCESS                        )
     OPENCLERRORCODETOSTRING_CASE(CL_DEVICE_NOT_FOUND               )
@@ -97,22 +97,32 @@ static const char* OpenCLErrorCodeToString(cl_uint err)
     OPENCLERRORCODETOSTRING_CASE(CL_INVALID_BUFFER_SIZE            )
     OPENCLERRORCODETOSTRING_CASE(CL_INVALID_MIP_LEVEL              )
     OPENCLERRORCODETOSTRING_CASE(CL_INVALID_GLOBAL_WORK_SIZE       )
+#ifdef CL_VERSION_1_2
+    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_PROPERTY               )
+    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_IMAGE_DESCRIPTOR       )
+    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_COMPILER_OPTIONS       )
+    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_LINKER_OPTIONS         )
+    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_DEVICE_PARTITION_COUNT )
+#endif
+
 #undef OPENCLERRORCODETOSTRING_CASE
     }
     return "Unknown CL error";
 }
 
-#define OCL_VALIDATE(r) \
-{ \
-    if (r != CL_SUCCESS) \
-    {\
-        fprintf(stderr, "%s(%d) error: returned %d (%s)\n", \
-        __FILE__, __LINE__, r, OpenCLErrorCodeToString(r)); \
-        /*assert(false); */\
-    } \
+#ifdef _DEBUG
+void OCL_VALIDATE(cl_int in_status)
+{
+    if (in_status != CL_SUCCESS)
+    {
+		std::cerr
+			<< __FILE__ << "(" << __LINE__ << ") OpenCL returned error: "
+			<< in_status << " (" << cluErrorToString(in_status) << ")" << std::endl;
+        // assert(false);
+    }
 }
 #else
-#define OCL_VALIDATE(in_status) (void)in_status
+#define OCL_VALIDATE(in_status)
 #endif
 
 // cpu, gpu, accelerator, custom
@@ -546,7 +556,7 @@ cl_device_id CLU_Runtime::GetDevice(cl_device_type in_clDeviceType)
 }
 
 //-----------------------------------------------------------------------------
-// return command queue based on 
+// return command queue based on device type
 //-----------------------------------------------------------------------------
 cl_command_queue CLU_Runtime::GetCommandQueue(cl_device_type in_clDeviceType, cl_int* out_status)
 {
@@ -1452,6 +1462,7 @@ const char* CLU_API_CALL cluGetDeviceInfo(cl_int* out_pStatus)
 //-----------------------------------------------------------------------------
 void CL_CALLBACK CLU_ReleaseAlignedBufferCallback(cl_mem in_buffer, void* in_pHostPtr)
 {
+    in_buffer = 0; // unused, fixes compile warning about unused param.
     _aligned_free(in_pHostPtr);
 }
 
@@ -1467,19 +1478,30 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
     cl_mem mem = 0;
     try
     {
-        cl_uint alignment = CLU_Runtime::Get().GetBufferAlignment();
-        void* pMem = _aligned_malloc(in_size, alignment);
-        if ((0 == pMem) && (out_pStatus))
+        cl_int status = CL_INVALID_VALUE;
+        void* pMem = 0;
+
+        // create aligned host memory
+        if (in_size)
         {
-            *out_pStatus = CL_INVALID_VALUE;
+            cl_uint alignment = CLU_Runtime::Get().GetBufferAlignment();
+            pMem = _aligned_malloc(in_size, alignment);
         }
-        else
+
+        // wrap aligned host memory in an OpenCL buffer
+        if (pMem)
         {
             mem = clCreateBuffer(CLU_CONTEXT, in_flags | CL_MEM_USE_HOST_PTR, in_size, pMem, out_pStatus);
         }
+        else
+        {
+            status = CL_INVALID_VALUE;
+        }
+
+        // set a callback to automatically free the host memory when the OpenCL buffer is destroyed
         if (mem)
         {
-            cl_int status = clSetMemObjectDestructorCallback(mem, CLU_ReleaseAlignedBufferCallback, pMem);
+            status = clSetMemObjectDestructorCallback(mem, CLU_ReleaseAlignedBufferCallback, pMem);
             if (out_pPtr)
             {
                 *out_pPtr = pMem;
@@ -1487,7 +1509,12 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
         }
         else
         {
+            status = CL_OUT_OF_HOST_MEMORY;
             _aligned_free(pMem);
+        }
+        if (out_pStatus)
+        {
+            *out_pStatus = status;
         }
     }
     catch (...)
