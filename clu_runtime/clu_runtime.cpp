@@ -10,8 +10,11 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+// used by clu generator
 #define CLU_MAGIC_BUILD_FLAG "CLU_GENERATED_BUILD"
+
 #define CLU_MAXPROPERTYCOUNT 64
+#define CLU_MAX_NUM_IMAGE_ENTRIES 256
 
 #define CLU_DETECT_MEMORY_LEAKS 0
 // enable memory leak detection on MS 2010 + DEBUG build
@@ -40,75 +43,12 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <assert.h>
 #include <string>
 #include <map>
+#include <vector>
 #include <sstream>
 #include <iostream>
 
 #include <string.h> // gcc needs this for memset
 #include "clu.h"
-
-const char* CLU_API_CALL cluErrorToString(cl_int errcode_ret)
-{
-    switch (errcode_ret) {
-#define OPENCLERRORCODETOSTRING_CASE(X) case X : return #X;
-    OPENCLERRORCODETOSTRING_CASE(CL_SUCCESS                        )
-    OPENCLERRORCODETOSTRING_CASE(CL_DEVICE_NOT_FOUND               )
-    OPENCLERRORCODETOSTRING_CASE(CL_DEVICE_NOT_AVAILABLE           )
-    OPENCLERRORCODETOSTRING_CASE(CL_COMPILER_NOT_AVAILABLE         )
-    OPENCLERRORCODETOSTRING_CASE(CL_MEM_OBJECT_ALLOCATION_FAILURE  )
-    OPENCLERRORCODETOSTRING_CASE(CL_OUT_OF_RESOURCES               )
-    OPENCLERRORCODETOSTRING_CASE(CL_OUT_OF_HOST_MEMORY             )
-    OPENCLERRORCODETOSTRING_CASE(CL_PROFILING_INFO_NOT_AVAILABLE   )
-    OPENCLERRORCODETOSTRING_CASE(CL_MEM_COPY_OVERLAP               )
-    OPENCLERRORCODETOSTRING_CASE(CL_IMAGE_FORMAT_MISMATCH          )
-    OPENCLERRORCODETOSTRING_CASE(CL_IMAGE_FORMAT_NOT_SUPPORTED     )
-    OPENCLERRORCODETOSTRING_CASE(CL_BUILD_PROGRAM_FAILURE          )
-    OPENCLERRORCODETOSTRING_CASE(CL_MAP_FAILURE                    )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_VALUE                  )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_DEVICE_TYPE            )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_PLATFORM               )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_DEVICE                 )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_CONTEXT                )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_QUEUE_PROPERTIES       )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_COMMAND_QUEUE          )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_HOST_PTR               )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_MEM_OBJECT             )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_IMAGE_FORMAT_DESCRIPTOR)
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_IMAGE_SIZE             )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_SAMPLER                )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_BINARY                 )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_BUILD_OPTIONS          )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_PROGRAM                )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_PROGRAM_EXECUTABLE     )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_KERNEL_NAME            )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_KERNEL_DEFINITION      )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_KERNEL                 )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_ARG_INDEX              )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_ARG_VALUE              )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_ARG_SIZE               )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_KERNEL_ARGS            )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_WORK_DIMENSION         )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_WORK_GROUP_SIZE        )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_WORK_ITEM_SIZE         )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_GLOBAL_OFFSET          )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_EVENT_WAIT_LIST        )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_EVENT                  )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_OPERATION              )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_GL_OBJECT              )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_BUFFER_SIZE            )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_MIP_LEVEL              )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_GLOBAL_WORK_SIZE       )
-#ifdef CL_VERSION_1_2
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_PROPERTY               )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_IMAGE_DESCRIPTOR       )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_COMPILER_OPTIONS       )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_LINKER_OPTIONS         )
-    OPENCLERRORCODETOSTRING_CASE(CL_INVALID_DEVICE_PARTITION_COUNT )
-#endif
-
-#undef OPENCLERRORCODETOSTRING_CASE
-    }
-    return "Unknown CL error";
-}
 
 #ifdef _DEBUG
 void OCL_VALIDATE(cl_int in_status)
@@ -117,7 +57,7 @@ void OCL_VALIDATE(cl_int in_status)
     {
 		std::cerr
 			<< __FILE__ << "(" << __LINE__ << ") OpenCL returned error: "
-			<< in_status << " (" << cluErrorToString(in_status) << ")" << std::endl;
+			<< in_status << " (" << cluPrintError(in_status) << ")" << std::endl;
         // assert(false);
     }
 }
@@ -933,529 +873,6 @@ cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
     return program;
 }
 
-//=============================================================================
-//utility functions and structs
-//=============================================================================
-
-#define CLU_UTIL_MAX_STRING_LENGTH 256
-#define CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE (CLU_UTIL_MAX_STRING_LENGTH*128)
-
-// conveniently convert int, etc. to std::string
-template<typename T> std::string cluToString(T x)
-{
-    std::stringstream i;
-    i << x;
-    return i.str();
-}
-
-// cl_bool isn't sufficiently distinct to use an overloaded cluToString<>
-#define BoolToStr(in_b) std::string(CL_TRUE==in_b?"true":"false")
-
-//-----------------------------------------------------------------------------
-// utility to acquire platform information string for all platforms.
-//-----------------------------------------------------------------------------
-const char* CLU_GetPlatformInfo(cl_int* out_pStatus)
-{
-    struct PlatformInfo
-    {
-        char platformProfile[CLU_UTIL_MAX_STRING_LENGTH];
-        char platformVersion[CLU_UTIL_MAX_STRING_LENGTH];
-        char platformName[CLU_UTIL_MAX_STRING_LENGTH];
-        char platformVendor[CLU_UTIL_MAX_STRING_LENGTH];
-        char platformExtensions[CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE];
-    } platformInfo;
-
-    static std::string s;
-    s.clear();
-
-    cl_uint numPlatforms = 0;
-    cl_int status = clGetPlatformIDs(0, 0, &numPlatforms);
-    OCL_VALIDATE(status);
-
-    cl_platform_id* platforms = new cl_platform_id[numPlatforms];
-    status = clGetPlatformIDs(numPlatforms, platforms, 0);
-    OCL_VALIDATE(status);
-
-    s += "-----------------------------------------------------------------------\n";
-    s += "\t\tTHIS SYSTEM HAS " + cluToString(numPlatforms) + " OPENCL PLATFORM(S) INSTALLED\n";
-    s += "-----------------------------------------------------------------------\n\n";
-
-    s += "***********************************************************************\n";
-    s += "\t\tBegin Platform Information\n";
-    s += "***********************************************************************\n";    
-    
-    for(unsigned int i=0;i<numPlatforms;i++)
-    {
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformProfile, 0);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VERSION,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformVersion, 0);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME,       CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformName,    0);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR,     CLU_UTIL_MAX_STRING_LENGTH, platformInfo.platformVendor,  0);
-        status = clGetPlatformInfo(platforms[i], CL_PLATFORM_EXTENSIONS, CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE, platformInfo.platformExtensions, 0);
-
-        s += "***********************************************************************\n";
-        s += "\t\tDetails for platform " + cluToString(i+1) + " of " + cluToString(numPlatforms) + ": " + platformInfo.platformVendor + "\n";
-        s += "***********************************************************************\n";
-        s += "Platform Name: ";
-        s += platformInfo.platformName;
-        s += "\nVendor: ";
-        s += platformInfo.platformVendor;
-        s += "\nPlatform Profile: ";
-        s += platformInfo.platformProfile;
-        s += "\nVersion: ";
-        s +=  platformInfo.platformVersion;
-        s += "\nList of extensions supported:\n ";
-        s += platformInfo.platformExtensions;
-        s += "\n";
-    }
-
-    s += "***********************************************************************\n";
-    s += "\t\tEnd Platform Information\n";
-    s += "***********************************************************************\n";    
-    
-    delete [] platforms;
-    
-    if (out_pStatus)
-    {
-        *out_pStatus = status;
-    }
-
-    return s.c_str();
-}
-
-const char* CLU_API_CALL cluGetPlatformInfo(cl_int* out_pStatus)
-{
-    const char* info = 0;
-    cl_int status;
-    try
-    {
-        info = CLU_GetPlatformInfo(&status);
-    }
-    catch (...) // internal error, e.g. thrown by STL
-    {
-        status = CL_OUT_OF_HOST_MEMORY;
-    }
-    if (out_pStatus)
-    {
-        *out_pStatus = status;
-    }
-    return info;
-}
-
-//-----------------------------------------------------------------------------
-// utility to acquire device information string for all devices in all platforms.
-//-----------------------------------------------------------------------------
-struct DeviceInfo
-{
-    cl_device_type devType;
-    cl_uint vendor_id;
-
-    cl_uint max_compute_units;
-    cl_uint max_work_item_dims;
-    size_t max_work_items_per_dimension[3];
-    size_t max_wg_size;
-    
-    cl_uint device_preferred_vector_width_char;
-    cl_uint device_preferred_vector_width_short;
-    cl_uint device_preferred_vector_width_int;
-    cl_uint device_preferred_vector_width_long;
-    cl_uint device_preferred_vector_width_float;
-    cl_uint device_preferred_vector_width_half;
-
-    cl_uint device_native_vector_width_char;
-    cl_uint device_native_vector_width_short;
-    cl_uint device_native_vector_width_int;
-    cl_uint device_native_vector_width_long;
-    cl_uint device_native_vector_width_float;
-    cl_uint device_native_vector_width_half;
-
-    cl_uint max_clock_frequency;
-    cl_uint address_bits;
-    cl_ulong max_mem_alloc_size;
-
-    cl_bool image_support;
-    cl_uint max_read_image_args;
-    cl_uint    max_write_image_args;
-    size_t image2d_max_width;
-    size_t image2d_max_height;
-    size_t image3d_max_width;
-    size_t image3d_max_height;
-    size_t image3d_max_depth;
-    cl_uint max_samplers;
-    
-    size_t max_parameter_size; 
-    cl_uint mem_base_addr_align;
-    cl_uint min_data_type_align_size;
-    cl_device_fp_config single_fp_config;
-    cl_device_mem_cache_type global_mem_cache_type;
-    cl_uint global_mem_cacheline_size;
-    cl_ulong global_mem_cache_size;
-    cl_ulong global_mem_size;
-    cl_ulong constant_buffer_size;
-    cl_uint max_constant_args;
-    cl_device_local_mem_type local_mem_type;
-    cl_ulong local_mem_size;
-    cl_bool error_correction_support;
-
-    cl_bool unified_memory;
-    size_t profiling_timer_resolution;
-    cl_bool endian_little;
-    cl_bool device_available;
-    cl_bool compiler_available;
-    cl_device_exec_capabilities device_capabilities;
-    cl_command_queue_properties queue_properties;
-    cl_platform_id platform_id;
-
-    char device_name[CLU_UTIL_MAX_STRING_LENGTH];
-    char device_vendor[CLU_UTIL_MAX_STRING_LENGTH];
-    char driver_version[CLU_UTIL_MAX_STRING_LENGTH];
-    char device_profile[CLU_UTIL_MAX_STRING_LENGTH];
-    char device_version[CLU_UTIL_MAX_STRING_LENGTH];
-    char opencl_c_version[CLU_UTIL_MAX_STRING_LENGTH];
-    char extensions[CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE];
-};
-
-const char* CLU_GetDeviceInfo(cl_int* out_pStatus)
-{
-    static std::string s;
-    s.clear();
-
-    int status;
-    cl_uint numPlatforms = 0;
-    
-    //first we need to get the number of devices on the platform
-    status = clGetPlatformIDs(0, 0, &numPlatforms);
-    OCL_VALIDATE(status);
-
-    cl_platform_id* platforms = new cl_platform_id[numPlatforms];
-
-    status = clGetPlatformIDs(numPlatforms, platforms, 0);
-    OCL_VALIDATE(status);
-
-    s += "***********************************************************************\n";
-    s += "\t\tBegin Per Platform Device Information\n";
-    s += "***********************************************************************\n";    
-
-    //then we can ask about their properties
-    for(cl_uint i=0;i<numPlatforms;i++)
-    {
-
-        //get the number of devices for this platform
-        cl_uint numDevices = 0;
-
-        //frist, query this platform for the number of devices
-        
-        status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, 0, 0, &numDevices);
-        OCL_VALIDATE(status);
-
-        cl_device_id* localDevices = new cl_device_id[numDevices];
-        status = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_ALL, numDevices, localDevices, 0);
-        OCL_VALIDATE(status);
-
-        for(cl_uint j=0;j<numDevices;j++)
-        {
-            DeviceInfo deviceInfo;
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceInfo.devType, 0);
-            
-
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_VENDOR_ID, sizeof(cl_device_type), &deviceInfo.vendor_id, 0);
-
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceInfo.max_compute_units, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceInfo.max_work_item_dims, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_ITEM_SIZES, (sizeof(size_t)*3), &deviceInfo.max_work_items_per_dimension, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(cl_uint), &deviceInfo.max_wg_size, 0);
-
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_preferred_vector_width_char, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_short, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_int, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_long, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_float, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_half, 0);
-            
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_native_vector_width_char, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_short, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_int, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_native_vector_width_long, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_float, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_native_vector_width_half, 0);
-            
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceInfo.max_clock_frequency, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &deviceInfo.address_bits, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &deviceInfo.max_mem_alloc_size, 0);
-            
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceInfo.image_support, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_READ_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_read_image_args, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_WRITE_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_write_image_args, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE2D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image2d_max_width, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE2D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image2d_max_height, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image3d_max_width, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image3d_max_height, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_IMAGE3D_MAX_DEPTH, sizeof(size_t), &deviceInfo.image3d_max_depth, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_SAMPLERS, sizeof(cl_uint), &deviceInfo.max_samplers, 0);
-
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(size_t), &deviceInfo.max_parameter_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceInfo.mem_base_addr_align, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE, sizeof(cl_uint), &deviceInfo.min_data_type_align_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_SINGLE_FP_CONFIG, sizeof(cl_device_fp_config), &deviceInfo.single_fp_config, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHE_TYPE, sizeof(cl_device_mem_cache_type), &deviceInfo.global_mem_cache_type, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceInfo.global_mem_cacheline_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_cache_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &deviceInfo.constant_buffer_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(cl_uint), &deviceInfo.max_constant_args, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_LOCAL_MEM_TYPE, sizeof(cl_device_local_mem_type), &deviceInfo.local_mem_type, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.local_mem_size, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool), &deviceInfo.error_correction_support, 0);
-            
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(cl_bool), &deviceInfo.unified_memory, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(size_t), &deviceInfo.profiling_timer_resolution, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_ENDIAN_LITTLE, sizeof(cl_bool), &deviceInfo.endian_little, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_AVAILABLE, sizeof(cl_bool), &deviceInfo.device_available, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_COMPILER_AVAILABLE, sizeof(cl_bool), &deviceInfo.compiler_available, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_EXECUTION_CAPABILITIES, sizeof(cl_device_exec_capabilities), &deviceInfo.device_capabilities, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_QUEUE_PROPERTIES, sizeof(cl_command_queue_properties), &deviceInfo.queue_properties, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &deviceInfo.platform_id, 0);
-            
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_NAME, (sizeof(char)*256), &deviceInfo.device_name, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_VENDOR, (sizeof(char)*256), &deviceInfo.device_vendor, 0);
-            clGetDeviceInfo(localDevices[j], CL_DRIVER_VERSION, (sizeof(char)*256), &deviceInfo.driver_version, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_PROFILE, (sizeof(char)*256), &deviceInfo.device_profile, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_VERSION, (sizeof(char)*256), &deviceInfo.device_version, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_OPENCL_C_VERSION, (sizeof(char)*256), &deviceInfo.opencl_c_version, 0);
-            clGetDeviceInfo(localDevices[j], CL_DEVICE_EXTENSIONS, (sizeof(char)*256*128), &deviceInfo.extensions, 0);
-
-            s += "***********************************************************************\n";
-            s += "\t\tPlatform: " + cluToString(i) + ", Device " + cluToString(j+1) + " of " + cluToString(numDevices) + ", Type: ";
-
-            if(deviceInfo.devType == CL_DEVICE_TYPE_CPU)
-            {
-                    s += " CPU";
-            }
-            else if(deviceInfo.devType == CL_DEVICE_TYPE_GPU)
-            {
-                    s += " GPU";
-            }
-            else if(deviceInfo.devType == CL_DEVICE_TYPE_ACCELERATOR)
-            {
-                    s += " Accelerator";
-            }
-            /* for OCL 1.2
-            else if(deviceInfo[i].devType == CL_DEVICE_TYPE_CUSTOM)
-            {
-                    s += " Custom\n";
-            }
-            */
-            if(deviceInfo.devType == CL_DEVICE_TYPE_DEFAULT)
-            {
-                    s += " Default";
-            }
-            s += "\n***********************************************************************\n";
-            s += "Device Name: ";
-            s += deviceInfo.device_name;
-            s += "\nVendor Name: ";
-            s += deviceInfo.device_vendor;
-            s += "\n\tDriver Version: ";
-            s += deviceInfo.driver_version;
-            s += "\n\tProfile: ";
-            s += deviceInfo.device_profile;
-            s += "\n\tDevice Version: ";
-            s += deviceInfo.device_version;
-            s += "\ntOpenCL C Version: ";
-            s += deviceInfo.opencl_c_version;
-            s += "\n\n";
-
-            s += "Vendor ID: " + cluToString(deviceInfo.vendor_id) + "\n";
-
-            s += "Max Compute Units: " + cluToString(deviceInfo.max_compute_units) + "\n";
-            s += "Max # of Dimensions: " + cluToString(deviceInfo.max_work_item_dims) + "\n";
-
-            s += "Max # items per dim: [" +
-                cluToString(deviceInfo.max_work_items_per_dimension[0]) + "," +
-                cluToString(deviceInfo.max_work_items_per_dimension[1]) + "," +
-                cluToString(deviceInfo.max_work_items_per_dimension[2]) + "]\n";
-            
-            s += "Max workgroup size: "  + cluToString(deviceInfo.max_wg_size) + "\n";
-            
-            s += "\nPreferred Vector Widths:\n"
-                "\tchar: "   + cluToString(deviceInfo.device_preferred_vector_width_char) +
-                ", short: " + cluToString(deviceInfo.device_preferred_vector_width_short) +
-                ", int: "   + cluToString(deviceInfo.device_preferred_vector_width_int) +
-                ", long: "  + cluToString(deviceInfo.device_preferred_vector_width_long) +
-                ", float: " + cluToString(deviceInfo.device_preferred_vector_width_float) +
-                ", half: "  + cluToString(deviceInfo.device_native_vector_width_half) + "\n";
-            
-            s += "Native Vector Widths:\n"
-                "\tchar: "   + cluToString(deviceInfo.device_native_vector_width_char) +
-                ", short: " + cluToString(deviceInfo.device_native_vector_width_short) +
-                ", int: "   + cluToString(deviceInfo.device_native_vector_width_int) +
-                ", long: "  + cluToString(deviceInfo.device_native_vector_width_long) +
-                ", float: " + cluToString(deviceInfo.device_native_vector_width_float) +
-                ", half: "  + cluToString(deviceInfo.device_native_vector_width_half) + "\n";
-            
-            s += "\nMaximum Clock Freq: " + cluToString(deviceInfo.max_clock_frequency) + " Mhz\n";
-            s += "Address Bits: " + cluToString(deviceInfo.address_bits) + "\n";
-            s += "Max Memory Allocation Size: " + cluToString(deviceInfo.max_mem_alloc_size) + " bytes\n";
-
-            s += "\nImages";
-            s += "\n\tImage Support: " + BoolToStr(deviceInfo.image_support);
-            s += "\n\tMax # of simultaneous read images: " + cluToString(deviceInfo.max_read_image_args);
-            s += "\n\tMax # of simultaneous write images: " + cluToString(deviceInfo.max_write_image_args);
-            s += "\n\t2D Max [W,H]: [" + cluToString(deviceInfo.image2d_max_width) + "," + cluToString(deviceInfo.image2d_max_height) + "]";
-            s += "\n\t3D Max [W,H,D]:[" + cluToString(deviceInfo.image3d_max_width) + "," + cluToString(deviceInfo.image3d_max_height) + "," + cluToString(deviceInfo.image3d_max_depth) + "]";
-            s += "\n\tMax # samplers: " + cluToString(deviceInfo.max_samplers) + "\n";
-    
-            s += "\nFP configuration\n";
-            if(deviceInfo.single_fp_config & CL_FP_DENORM)
-            {
-                s += "\tDenorms Supported\n";
-            }
-            if(deviceInfo.single_fp_config & CL_FP_INF_NAN)
-            {
-                s += "\tINF and quiet NANs are supported\n";
-            }
-            if(deviceInfo.single_fp_config & CL_FP_ROUND_TO_NEAREST)
-            {
-                s += "\tRound to nearest even supported\n";
-            }
-            if(deviceInfo.single_fp_config & CL_FP_ROUND_TO_ZERO)
-            {
-                s += "\tRound to zero rounding mode supported\n";
-            }
-            if(deviceInfo.single_fp_config & CL_FP_ROUND_TO_INF)
-            {
-                s += "\tRound to positive and negative infinity rounding modes supported\n";
-            }
-            if(deviceInfo.single_fp_config & CL_FP_FMA)
-            {
-                s += "\tIEEE754-2008 fused multiply add supported\n";
-            }
-            if(deviceInfo.single_fp_config & CL_FP_SOFT_FLOAT)
-            {
-                s += "\tBasic floating point operations are implemented in software\n";
-            }
-
-            s += "\n";
-
-            s += "Memory Properties\n";
-            s += "\tMax size of argument that can be passed to kernel: " + cluToString(deviceInfo.max_parameter_size) + " bytes\n";
-            s += "\tMin. value of largest datatype supported (For alignment): " + cluToString(deviceInfo.mem_base_addr_align) + " bits, " + cluToString(deviceInfo.min_data_type_align_size) + " bytes\n";
-            s += "\tGlobal Memory:\n";
-            s += "\t\tGlobal cacheline size: " + cluToString(deviceInfo.global_mem_cacheline_size) + " bytes\n";
-            s += "\t\tGlobal Cache Size: " + cluToString(deviceInfo.global_mem_cache_size) + " bytes\n";
-            s += "\t\tGlobal Device Memory: " + cluToString(deviceInfo.global_mem_size) + " bytes\n";
-            
-            s += "\t\tGlobal Memory Cache Type: ";
-            if(deviceInfo.global_mem_cache_type == CL_NONE)
-            {
-                s += "None\n";
-            }
-            else if(deviceInfo.global_mem_cache_type == CL_READ_ONLY_CACHE)
-            {
-                s += "Read Only\n";
-            }
-            else if(deviceInfo.global_mem_cache_type == CL_READ_WRITE_CACHE)
-            {
-                s += "Read/Write\n";
-            }
-
-            s += "\tConstant Memory:\n";
-            s += "\t\tConstant Buffer Size: " + cluToString(deviceInfo.constant_buffer_size) + " bytes\n";
-            s += "\t\tMax number of constant arguments: " + cluToString(deviceInfo.max_constant_args) + "\n";
-            s += "\tLocal Memory\n";
-            s += "\t\tLocal Memory Size: " + cluToString(deviceInfo.local_mem_size) + " bytes\n";
-            s += "\t\tError Correction Support: " + cluToString(deviceInfo.error_correction_support) + "\n";
-            if(deviceInfo.local_mem_type == CL_LOCAL)
-            { 
-                s += "\t\tHas dedicated local memory storage\n";
-            }
-            else if(deviceInfo.local_mem_type == CL_GLOBAL)
-            {
-                s += "\t\tDoes not have Local memory, local memory is actually global\n";
-            }
-
-            s += "\tUnified Memory: " + BoolToStr(deviceInfo.unified_memory) + "\n";
-            
-            s += "\nProfiling Timer Resolution: " + cluToString(deviceInfo.profiling_timer_resolution);
-            s += "\nLittle Endian: " + BoolToStr(deviceInfo.endian_little);
-            s += "\nDevice Available: " + BoolToStr(deviceInfo.device_available);
-            s += "\nCompiler Available: " + BoolToStr(deviceInfo.compiler_available);
-            s += "\nPlatform Id: " + cluToString(deviceInfo.platform_id) + "\n";
-
-            //start here
-            s += "Device Execution Capabilities: \n";
-            if(deviceInfo.device_capabilities & CL_EXEC_KERNEL)
-            {
-                s += "\tCan execute OpenCL kernels\n";
-            }
-            if(deviceInfo.device_capabilities & CL_EXEC_NATIVE_KERNEL)
-            {
-                s += "\tCan execute Native kernels\n";
-            }
-            
-            s += "Device Queue Properties: \n";
-            if(deviceInfo.queue_properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE)
-            {
-                s += "tCan execute OpenCL kernels out of order\n";
-            }
-            
-            if(deviceInfo.queue_properties & CL_QUEUE_PROFILING_ENABLE)
-            {
-                s += "\tProfiling of queue commands currently ENABLED\n";
-            }
-            else
-            {
-                s += "\tProfiling of queue commands currently DISABLED\n";
-            }
-
-    
-            s += "Extensions:\n";
-            s += deviceInfo.extensions;
-            s += "\n";
-
-
-            s += "***********************************************************************\n";
-            s += "******************** Platform: " + cluToString(i) + ", Device " + cluToString(j+1) + " End ************************\n";
-            s += "***********************************************************************\n\n\n";
-
-        } //end device loop
-
-        delete [] localDevices;
-    } //end platform loop
-
-
-    s += "***********************************************************************\n";
-    s += "\t\tEnd Per Platform Device Information\n";
-    s += "***********************************************************************\n";    
-
-
-    delete [] platforms;
-
-    if (out_pStatus)
-    {
-        *out_pStatus = status;
-    }
-
-    return s.c_str();
-}
-
-const char* CLU_API_CALL cluGetDeviceInfo(cl_int* out_pStatus)
-{
-    const char* info = 0;
-    cl_int status;
-    try
-    {
-        info = CLU_GetDeviceInfo(&status);
-    }
-    catch (...) // internal error, e.g. thrown by STL
-    {
-        status = CL_OUT_OF_HOST_MEMORY;
-    }
-    if (out_pStatus)
-    {
-        *out_pStatus = status;
-    }
-    return info;
-}
-
 //-----------------------------------------------------------------------------
 // release a buffer and its aligned host memory
 // (expects created with cluCreateAlignedBuffer)
@@ -1521,4 +938,485 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
     {
     }
     return mem;
+}
+
+//-----------------------------------------------------------------------------
+// wait until /any/ event in the list fires
+//-----------------------------------------------------------------------------
+void CL_CALLBACK CLU_WaitOnAnyEventCallback(cl_event in_event, cl_int in_eventStatus, void* in_data)
+{
+    assert(CL_SUCCESS == in_eventStatus);
+    clSetUserEventStatus((cl_event)in_data, CL_COMPLETE);
+    clReleaseEvent((cl_event)in_data);
+}
+
+// wait on any event implementation:
+//   1. create a user event
+//   2. set a callback on every event in the input list, this callback sets the user event
+//   3. wait on the internal user event
+cl_int CLU_WaitOnAnyEvent(const cl_event* in_eventList, cl_uint in_numEvents)
+{
+    cl_int status;
+    cl_event waitEvent = clCreateUserEvent(cluGetContext(), &status);
+    if (CL_SUCCESS == status)
+    {
+        for (cl_uint i = 0; i < in_numEvents; i++)
+        {
+            status = clRetainEvent(waitEvent); // the callback will use the event, so hold a reference
+            status = clSetEventCallback(in_eventList[i], CL_COMPLETE, CLU_WaitOnAnyEventCallback, waitEvent);
+            if (CL_SUCCESS != status)
+            {
+                break; // failed for some reason
+            }
+        }
+    } // end if got user event for internal callback function
+
+    if (CL_SUCCESS == status)
+    {
+        status = clWaitForEvents(1, &waitEvent);
+    }
+    clReleaseEvent(waitEvent);
+    return status;
+}
+
+cl_int CLU_API_CALL
+cluWaitOnAnyEvent(const cl_event* event_list,
+                  cl_uint         num_events)
+{
+    cl_int status;
+    try
+    {
+        status = CLU_WaitOnAnyEvent(event_list, num_events);
+    }
+    catch (...)
+    {
+    }
+    return status;
+}
+
+//=============================================================================
+//utility functions and structs
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+// utility to acquire platform information string for all platforms.
+//-----------------------------------------------------------------------------
+clu_platform_info CLU_GetPlatformInfo(cl_platform_id in_platformId, cl_int* out_pStatus)
+{
+    clu_platform_info platformInfo;
+    cl_int status;
+
+    status = clGetPlatformInfo(in_platformId, CL_PLATFORM_PROFILE,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.profile, 0);
+    status = clGetPlatformInfo(in_platformId, CL_PLATFORM_VERSION,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.version, 0);
+    status = clGetPlatformInfo(in_platformId, CL_PLATFORM_NAME,       CLU_UTIL_MAX_STRING_LENGTH, platformInfo.name,    0);
+    status = clGetPlatformInfo(in_platformId, CL_PLATFORM_VENDOR,     CLU_UTIL_MAX_STRING_LENGTH, platformInfo.vendor,  0);
+    status = clGetPlatformInfo(in_platformId, CL_PLATFORM_EXTENSIONS, CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE, platformInfo.extensions, 0);
+    
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+
+    return platformInfo;
+}
+
+clu_platform_info CLU_API_CALL cluGetPlatformInfo(cl_platform_id id, cl_int* out_pStatus)
+{
+    clu_platform_info info = {0};
+    cl_int status;
+    try
+    {
+        info = CLU_GetPlatformInfo(id, &status);
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_OUT_OF_HOST_MEMORY;
+    }
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+    return info;
+}
+
+//-----------------------------------------------------------------------------
+// utility to acquire device information string for all devices in all platforms.
+//-----------------------------------------------------------------------------
+clu_device_info CLU_GetDeviceInfo(cl_device_id in_deviceId, cl_int* out_pStatus)
+{
+    clu_device_info deviceInfo;
+    cl_int status;
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_TYPE, sizeof(cl_device_type), &deviceInfo.devType, 0);            
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_VENDOR_ID, sizeof(cl_device_type), &deviceInfo.vendor_id, 0);
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceInfo.max_compute_units, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceInfo.max_work_item_dims, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_WORK_ITEM_SIZES, (sizeof(size_t)*3), &deviceInfo.max_work_items_per_dimension, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(cl_uint), &deviceInfo.max_wg_size, 0);
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_preferred_vector_width_char, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_short, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_int, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_long, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_float, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_preferred_vector_width_half, 0);
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR, sizeof(size_t), &deviceInfo.device_native_vector_width_char, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_short, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_int, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.device_native_vector_width_long, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.device_native_vector_width_float, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.device_native_vector_width_half, 0);
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceInfo.max_clock_frequency, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &deviceInfo.address_bits, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &deviceInfo.max_mem_alloc_size, 0);
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceInfo.image_support, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_READ_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_read_image_args, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_WRITE_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.max_write_image_args, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_IMAGE2D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image2d_max_width, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_IMAGE2D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image2d_max_height, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_IMAGE3D_MAX_WIDTH, sizeof(size_t), &deviceInfo.image3d_max_width, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_IMAGE3D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.image3d_max_height, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_IMAGE3D_MAX_DEPTH, sizeof(size_t), &deviceInfo.image3d_max_depth, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_SAMPLERS, sizeof(cl_uint), &deviceInfo.max_samplers, 0);
+
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(size_t), &deviceInfo.max_parameter_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceInfo.mem_base_addr_align, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE, sizeof(cl_uint), &deviceInfo.min_data_type_align_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_SINGLE_FP_CONFIG, sizeof(cl_device_fp_config), &deviceInfo.single_fp_config, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_GLOBAL_MEM_CACHE_TYPE, sizeof(cl_device_mem_cache_type), &deviceInfo.global_mem_cache_type, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceInfo.global_mem_cacheline_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_cache_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.global_mem_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &deviceInfo.constant_buffer_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(cl_uint), &deviceInfo.max_constant_args, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_LOCAL_MEM_TYPE, sizeof(cl_device_local_mem_type), &deviceInfo.local_mem_type, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.local_mem_size, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool), &deviceInfo.error_correction_support, 0);
+            
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(cl_bool), &deviceInfo.unified_memory, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(size_t), &deviceInfo.profiling_timer_resolution, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_ENDIAN_LITTLE, sizeof(cl_bool), &deviceInfo.endian_little, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_AVAILABLE, sizeof(cl_bool), &deviceInfo.device_available, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_COMPILER_AVAILABLE, sizeof(cl_bool), &deviceInfo.compiler_available, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_EXECUTION_CAPABILITIES, sizeof(cl_device_exec_capabilities), &deviceInfo.device_capabilities, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_QUEUE_PROPERTIES, sizeof(cl_command_queue_properties), &deviceInfo.queue_properties, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &deviceInfo.platform_id, 0);
+    
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_NAME,             CLU_UTIL_MAX_STRING_LENGTH, &deviceInfo.device_name, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_VENDOR,           CLU_UTIL_MAX_STRING_LENGTH, &deviceInfo.device_vendor, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DRIVER_VERSION,          CLU_UTIL_MAX_STRING_LENGTH, &deviceInfo.driver_version, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_PROFILE,          CLU_UTIL_MAX_STRING_LENGTH, &deviceInfo.device_profile, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_VERSION,          CLU_UTIL_MAX_STRING_LENGTH, &deviceInfo.device_version, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_OPENCL_C_VERSION, CLU_UTIL_MAX_STRING_LENGTH, &deviceInfo.opencl_c_version, 0);
+    status = clGetDeviceInfo(in_deviceId, CL_DEVICE_EXTENSIONS,       CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE, &deviceInfo.extensions, 0);
+
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+
+    return deviceInfo;
+}
+
+clu_device_info CLU_API_CALL cluGetDeviceInfo(cl_device_id id, cl_int* out_pStatus)
+{
+    clu_device_info info = {0};
+    cl_int status;
+    try
+    {
+        info = CLU_GetDeviceInfo(id, &status);
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_OUT_OF_HOST_MEMORY;
+    }
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+    return info;
+}
+
+//-----------------------------------------------------------------------------
+// Utility: return an array of image formats supported in a given CL context
+// the array returned is internal to CLU, applications should not attempt to free/delete it
+//-----------------------------------------------------------------------------
+const clu_image_format* CLU_GetImageFormats(cl_uint* out_pArraySize, cl_int* out_pStatus)
+{
+    static std::vector<clu_image_format> imageFormats;
+
+    imageFormats.resize(0);
+
+    cl_mem_object_type imageTypes[]  = {CL_MEM_OBJECT_IMAGE2D, CL_MEM_OBJECT_IMAGE3D};
+    cl_mem_flags       accessFlags[] = {CL_MEM_READ_WRITE, CL_MEM_WRITE_ONLY, CL_MEM_READ_ONLY};
+    cl_mem_flags       ptrFlags[]    = {0, CL_MEM_USE_HOST_PTR, CL_MEM_ALLOC_HOST_PTR, CL_MEM_COPY_HOST_PTR};
+    cl_mem_flags       hostFlags[]   = {CL_MEM_HOST_WRITE_ONLY, CL_MEM_HOST_READ_ONLY, CL_MEM_HOST_NO_ACCESS};
+
+    struct FormatLess
+    {
+        bool operator()(cl_image_format const& left, cl_image_format const& right) const
+        {
+            bool less = (
+                (left.image_channel_order < right.image_channel_order) ||
+                ((left.image_channel_order == right.image_channel_order) &&
+                (left.image_channel_data_type < right.image_channel_data_type))
+                );
+            return less;
+        }
+    };
+    typedef std::map<cl_image_format, cl_uint, FormatLess> FormatMap;
+    FormatMap formatMap;
+    cl_context ctx = cluGetContext();
+    cl_image_format* formats = 0;
+    cl_uint numFormats = 0;
+
+    // loop over all image dimensions (2D, 3D)
+    for (int i = 0; i < 2; i++)
+    {
+        cl_mem_object_type imageType = imageTypes[i];
+
+        // loop over data access flags (read only, write only, read+write)
+        for (int a = 0; a < 3; a++)
+        {
+            cl_mem_flags access = accessFlags[a];
+
+            // loop over host pointer support
+            // note that "0" (no corresponding host pointer) is supported by all types
+            for (int p = 0; p < 3; p++)
+            {
+                cl_mem_flags ptr = ptrFlags[p];
+
+                // loop over host access flags: can the host read or write to the image
+                for (int h = 0; h < 3; h++)
+                {
+                    cl_mem_flags host = hostFlags[h];
+
+                    cl_mem_flags memFlags = access | ptr | host;
+
+                    int status;
+                    cl_uint numSupportedFormats;
+
+                    // query context for all the supported image formats with the requested flags
+                    status = clGetSupportedImageFormats(ctx, memFlags, imageType, 0, 0, &numSupportedFormats);
+
+                    if (numSupportedFormats > numFormats)
+                    {
+                        delete [] formats;
+                        numFormats = numSupportedFormats;
+                        formats = new cl_image_format[numFormats];
+                    }
+
+                    // query context for all the supported image formats with the requested flags
+                    status = clGetSupportedImageFormats(ctx, memFlags, imageType, numFormats, formats, 0);
+
+                    // now, update CLU's flags for each image type
+                    // find each of the formats in the map
+                    // if not there, add it to the map
+                    // then, OR in the flags we just searched for
+                    for (cl_uint f = 0; f < numFormats; f++)
+                    {
+                        FormatMap::const_iterator iter = formatMap.find(formats[f]);
+                        cl_uint index = 0;
+
+                        // have we seen this format before?
+                        bool newFormat = (iter == formatMap.end());
+                        if (newFormat)
+                        {
+                            index = imageFormats.size();
+                            imageFormats.resize(index+1);
+                            formatMap[formats[f]] = index;
+                            imageFormats[index].pixelFormat = formats[f];
+                            imageFormats[index].supportedFlags = 0;
+                            imageFormats[index].supports2D = CL_FALSE;
+                            imageFormats[index].supports3D = CL_FALSE;
+                        }
+                        else
+                        {
+                            index = iter->second;
+                            assert(index < CLU_MAX_NUM_IMAGE_ENTRIES);
+                        }
+
+                        if (CL_MEM_OBJECT_IMAGE2D == imageType) {imageFormats[index].supports2D = CL_TRUE;}
+                        else {imageFormats[index].supports3D = CL_TRUE;}
+
+                        imageFormats[index].supportedFlags |= memFlags;
+                    }
+
+                } // end loop over host access flags
+            } // end loop over host pointer type flags
+        } // end loop over access flags
+    } // end loop over dimensions (2d/3d)
+
+    delete [] formats;
+
+    *out_pArraySize = imageFormats.size();
+    return &imageFormats[0];
+}
+
+//-----------------------------------------------------------------------------
+// Return an array of image formats supported in a given CL context
+// the array returned is internal to CLU, applications should not attempt to free/delete it
+//-----------------------------------------------------------------------------
+const clu_image_format* CLU_API_CALL cluGetSupportedImageFormats(cl_uint* array_size, cl_int* out_pStatus)
+{
+	//FIXME: consider using the query to first get the number of format descriptors that get returned then allocate clu_image_formats rightsized
+    cl_int status;
+    const clu_image_format* pFormats = 0;
+    try
+    {
+	    cl_context ctx = cluGetContext();
+        pFormats = CLU_GetImageFormats(array_size, &status);
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_OUT_OF_HOST_MEMORY;
+    }
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+    return pFormats;
+}
+
+/********************************************************************************************************/
+/* String Functions: convert enums/defines to char*
+/********************************************************************************************************/
+
+#define CLU_ENUM_TO_STRING_CASE(X) case X : return #X;
+
+//-----------------------------------------------------------------------------
+// Return a string from an OpenCL return code, e.g. CL_SUCCESS returns "CL_SUCCESS"
+//-----------------------------------------------------------------------------
+const char* CLU_API_CALL cluPrintError(cl_int errcode_ret)
+{
+    switch (errcode_ret)
+    {
+        CLU_ENUM_TO_STRING_CASE(CL_SUCCESS);
+        CLU_ENUM_TO_STRING_CASE(CL_DEVICE_NOT_FOUND);
+        CLU_ENUM_TO_STRING_CASE(CL_DEVICE_NOT_AVAILABLE);
+        CLU_ENUM_TO_STRING_CASE(CL_COMPILER_NOT_AVAILABLE);
+        CLU_ENUM_TO_STRING_CASE(CL_MEM_OBJECT_ALLOCATION_FAILURE);
+        CLU_ENUM_TO_STRING_CASE(CL_OUT_OF_RESOURCES);
+        CLU_ENUM_TO_STRING_CASE(CL_OUT_OF_HOST_MEMORY);
+        CLU_ENUM_TO_STRING_CASE(CL_PROFILING_INFO_NOT_AVAILABLE);
+        CLU_ENUM_TO_STRING_CASE(CL_MEM_COPY_OVERLAP);
+        CLU_ENUM_TO_STRING_CASE(CL_IMAGE_FORMAT_MISMATCH);
+        CLU_ENUM_TO_STRING_CASE(CL_IMAGE_FORMAT_NOT_SUPPORTED);
+        CLU_ENUM_TO_STRING_CASE(CL_BUILD_PROGRAM_FAILURE);
+        CLU_ENUM_TO_STRING_CASE(CL_MAP_FAILURE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_VALUE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_DEVICE_TYPE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_PLATFORM);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_DEVICE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_CONTEXT);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_QUEUE_PROPERTIES);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_COMMAND_QUEUE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_HOST_PTR);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_MEM_OBJECT);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_IMAGE_FORMAT_DESCRIPTOR);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_IMAGE_SIZE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_SAMPLER);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_BINARY);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_BUILD_OPTIONS);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_PROGRAM);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_PROGRAM_EXECUTABLE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_KERNEL_NAME);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_KERNEL_DEFINITION);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_KERNEL);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_ARG_INDEX);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_ARG_VALUE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_ARG_SIZE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_KERNEL_ARGS);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_WORK_DIMENSION);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_WORK_GROUP_SIZE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_WORK_ITEM_SIZE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_GLOBAL_OFFSET);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_EVENT_WAIT_LIST);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_EVENT);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_OPERATION);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_GL_OBJECT);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_BUFFER_SIZE);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_MIP_LEVEL);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_GLOBAL_WORK_SIZE);
+#ifdef CL_VERSION_1_2
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_PROPERTY);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_IMAGE_DESCRIPTOR);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_COMPILER_OPTIONS);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_LINKER_OPTIONS);
+        CLU_ENUM_TO_STRING_CASE(CL_INVALID_DEVICE_PARTITION_COUNT);
+#endif
+    }
+    return "Unknown CL error";
+}
+
+//-----------------------------------------------------------------------------
+// Return a string from image channel type
+//-----------------------------------------------------------------------------
+const char* CLU_API_CALL cluPrintChannelOrder(cl_channel_order in_channelOrder)
+{
+	switch(in_channelOrder)
+	{
+        CLU_ENUM_TO_STRING_CASE(CL_R);
+        CLU_ENUM_TO_STRING_CASE(CL_A);
+        CLU_ENUM_TO_STRING_CASE(CL_RG);
+        CLU_ENUM_TO_STRING_CASE(CL_RA);
+        CLU_ENUM_TO_STRING_CASE(CL_RGB);
+        CLU_ENUM_TO_STRING_CASE(CL_RGBA);
+        CLU_ENUM_TO_STRING_CASE(CL_BGRA);
+        CLU_ENUM_TO_STRING_CASE(CL_ARGB);
+        CLU_ENUM_TO_STRING_CASE(CL_INTENSITY);
+        CLU_ENUM_TO_STRING_CASE(CL_LUMINANCE);
+        CLU_ENUM_TO_STRING_CASE(CL_Rx);
+        CLU_ENUM_TO_STRING_CASE(CL_RGx);
+        CLU_ENUM_TO_STRING_CASE(CL_RGBx);
+
+        // note: some ocl implementations ship a version 1.2 header that is incomplete
+        // hence, can't just check version number
+#ifdef CL_DEPTH
+        CLU_ENUM_TO_STRING_CASE(CL_DEPTH);
+        CLU_ENUM_TO_STRING_CASE(CL_DEPTH_STENCIL);
+#endif
+	default:
+		return "Unknown";
+		break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Return a string from image channel order
+//-----------------------------------------------------------------------------
+const char* CLU_API_CALL cluPrintChannelType(cl_channel_type in_channelType)
+{
+	switch(in_channelType)
+	{
+        CLU_ENUM_TO_STRING_CASE(CL_SNORM_INT8);
+        CLU_ENUM_TO_STRING_CASE(CL_SNORM_INT16);
+        CLU_ENUM_TO_STRING_CASE(CL_UNORM_INT8);
+        CLU_ENUM_TO_STRING_CASE(CL_UNORM_INT16);
+        CLU_ENUM_TO_STRING_CASE(CL_UNORM_SHORT_565);
+        CLU_ENUM_TO_STRING_CASE(CL_UNORM_SHORT_555);
+        CLU_ENUM_TO_STRING_CASE(CL_UNORM_INT_101010);
+        CLU_ENUM_TO_STRING_CASE(CL_SIGNED_INT8);
+        CLU_ENUM_TO_STRING_CASE(CL_SIGNED_INT16);
+        CLU_ENUM_TO_STRING_CASE(CL_SIGNED_INT32);
+        CLU_ENUM_TO_STRING_CASE(CL_UNSIGNED_INT8);
+        CLU_ENUM_TO_STRING_CASE(CL_UNSIGNED_INT16);
+        CLU_ENUM_TO_STRING_CASE(CL_UNSIGNED_INT32);
+        CLU_ENUM_TO_STRING_CASE(CL_HALF_FLOAT);
+        CLU_ENUM_TO_STRING_CASE(CL_FLOAT);
+
+        // note: some ocl implementations ship a version 1.2 header that is incomplete
+        // hence, can't just check version number
+#ifdef CL_UNORM_INT24
+        CLU_ENUM_TO_STRING_CASE(CL_UNORM_INT24);
+#endif
+	default:
+		return "Unknown";
+		break;
+	}
 }

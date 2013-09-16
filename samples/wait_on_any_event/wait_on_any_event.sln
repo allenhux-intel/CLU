@@ -1,0 +1,20 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wait_on_any_event", "wait_on_any_event.vcxproj", "{F8BB3875-77C0-49F2-925B-356F0D9570E7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F8BB3875-77C0-49F2-925B-356F0D9570E7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F8BB3875-77C0-49F2-925B-356F0D9570E7}.Debug|Win32.Build.0 = Debug|Win32
+		{F8BB3875-77C0-49F2-925B-356F0D9570E7}.Release|Win32.ActiveCfg = Release|Win32
+		{F8BB3875-77C0-49F2-925B-356F0D9570E7}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
