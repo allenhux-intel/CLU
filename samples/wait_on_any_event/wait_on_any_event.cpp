@@ -22,8 +22,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 DWORD WINAPI ThreadFunc(void* pParam)
 {
+    printf("waiting thread: Waiting for event...\n");
     cluWaitOnAnyEvent((cl_event*)pParam, NUM_EVENTS);
-    printf("Event signaled\n");
+    printf("waiting thread: Event signaled\n");
     return 0;
 }
 
@@ -39,6 +40,10 @@ void main()
     // create a thread that will wait for /any/ event to fire
     DWORD threadId;
     HANDLE threadHandle = CreateThread(0, 0, ThreadFunc, events, 0, &threadId);
+
+    printf("main thread: thread created\n");
+    Sleep(1000);
+    printf("main thread: signaling one of the events\n");
 
     clSetUserEventStatus(events[WHICH_EVENT], CL_COMPLETE);
 
