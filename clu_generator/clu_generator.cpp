@@ -153,6 +153,31 @@ public:
         out_string = m_string.substr(m_start, m_end-m_start);
     }
 
+    // Jump over a sequence of tokens starting with the specified token and
+    // ending with the specified delimiter.
+    // Particularly useful to skip the '__attribute__' sequence in the kernel declaration.
+    int SkipTokens(const string& token, const string& delimiter)
+    {
+        int bkpIndex = m_index;
+
+        NextToken();
+
+        string localToken;
+        GetToken(localToken);
+
+        if (token.compare(localToken) == 0)
+        {
+            m_index = m_string.find(delimiter, m_index);
+
+            m_start = TOKEN_END;
+            m_end   = TOKEN_END;
+        }
+        else
+            m_index = bkpIndex;
+
+        return m_index;
+    }
+
     // change current position within the input string
     void SetStartIndex(int in_index) {m_index = in_index;}
 };
@@ -423,6 +448,8 @@ void FindKernels(const string& src, KernelList& out_kernels)
         {
             // structure to be returned containing kernel name & parameters
             KernelStrings kernelStrings;
+
+            srcIndex = tokenizer.SkipTokens("__attribute__", ")");
 
             int index = GetParameterString(src, srcIndex, kernelStrings.m_parameters);
             if (0 == index)
