@@ -7,9 +7,11 @@ set(CPPVECTORADD_HEADERS
 	CPPVectorAddKernel.cl
 	${CLU_SOURCE_DIR}/samples/cpp/CPPVectorAddKernel.cl.h)	
 
-ADD_DEFINITIONS(
-    -std=c++0x  # Or -std=c++11 
-)
+if (LINUX)
+    ADD_DEFINITIONS(
+        -std=c++0x  # Or -std=c++11 
+    )
+endif (LINUX)
 
 add_custom_command(
 	OUTPUT CPPVectorAddKernel.cl.h
