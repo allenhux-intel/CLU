@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 const int NUM_VALUES = 16;
 
 // example using CLU to write a very simple application to do some OpenCL exploration
-void main()
+int main()
 {
     cl_int status = cluInitialize(0);
 

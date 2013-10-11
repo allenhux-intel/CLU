@@ -17,4 +17,4 @@ add_executable(float_to_half ${FLOAT_TO_HALF_SOURCES} ${FLOAT_TO_HALF_HEADERS})
 add_dependencies(float_to_half
 	clu_generator
 	clu_runtime)
-target_link_libraries( float_to_half OpenCL.lib clu_runtime ) 
+target_link_libraries( float_to_half OpenCL clu_runtime ) 

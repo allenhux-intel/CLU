@@ -32,7 +32,7 @@ cl::Program clugGet_CPPVectorAddKernel_cl_h(const cl::Context &creationContext)
 }
 
 std::function<cl::Event (
-    const cl::EnqueueArgs&, 
+    cl::EnqueueArgs&, 
     cl::Buffer &, 
     cl::Buffer &, 
     cl::Buffer &
@@ -40,7 +40,7 @@ std::function<cl::Event (
 clugCreate_vectorAdd(cl::Context creationContext = cl::Context::getDefault()) 
 {
     std::function<cl::Event (
-        const cl::EnqueueArgs&, 
+        cl::EnqueueArgs&, 
         cl::Buffer &, 
         cl::Buffer &, 
         cl::Buffer &)> 
