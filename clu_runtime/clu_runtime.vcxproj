@@ -56,13 +56,7 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
->>>> ORIGINAL //depot/AVC/OpenCL_Pathfinding/visual-analytics/lib/clu/clu_runtime/clu_runtime.vcxproj#1
-      <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-==== THEIRS //depot/AVC/OpenCL_Pathfinding/visual-analytics/lib/clu/clu_runtime/clu_runtime.vcxproj#2
       <AdditionalIncludeDirectories>$(INTELOCLSDKROOT)include;$(AMDAPPSDKROOT)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-==== YOURS //Carthage/AVC/OpenCL_Pathfinding/usability/clu/git_mirror/clu_runtime/clu_runtime.vcxproj
-      <AdditionalIncludeDirectories>$(AMDAPPSDKROOT)/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-<<<<
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
