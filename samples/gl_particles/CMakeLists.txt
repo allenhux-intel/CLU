@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 
 set(GLEW_DIST_DIR ../lib/glew-1.7.0/ CACHE PATH "GLEW source dir")
-set(CLU_LIB_DIR ${CLU_SOURCE_DIR}/lib CACHE PATH "CLU Library dir")
+set(CLU_LIB_DIR ${CLU_SOURCE_DIR}/samples/lib CACHE PATH "CLU Library dir")
 
 find_package(OpenGL)
 if (OPENGL_FOUND)

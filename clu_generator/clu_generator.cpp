@@ -717,7 +717,7 @@ public:
         // Output function to return std::function wrapper
         m_outFile << 
             "std::function<cl::Event (";
-        m_outFile << endl << "    const cl::EnqueueArgs&";
+        m_outFile << endl << "    cl::EnqueueArgs&";
         // Output param type list
         for (unsigned int i = 0; i < kernelParams.size(); i++)
         {
@@ -728,7 +728,7 @@ public:
             "    )> " << endl << createName << "(cl::Context creationContext = cl::Context::getDefault()) " << endl << "{" << endl;
         m_outFile << 
             "    std::function<cl::Event (";
-        m_outFile << endl << "        const cl::EnqueueArgs&";
+        m_outFile << endl << "        cl::EnqueueArgs&";
         // Output param type list
         for (unsigned int i = 0; i < kernelParams.size(); i++)
         {

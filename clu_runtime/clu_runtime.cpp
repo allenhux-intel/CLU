@@ -46,6 +46,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include <vector>
 #include <sstream>
 #include <iostream>
+#include <malloc.h>
 
 #include <string.h> // gcc needs this for memset
 #include "clu.h"
@@ -899,7 +900,11 @@ cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
 void CL_CALLBACK CLU_ReleaseAlignedBufferCallback(cl_mem in_buffer, void* in_pHostPtr)
 {
     in_buffer = 0; // unused, fixes compile warning about unused param.
+#if defined WIN32            
     _aligned_free(in_pHostPtr);
+#else
+    free(in_pHostPtr);
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -921,7 +926,15 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
         if (in_size)
         {
             cl_uint alignment = CLU_Runtime::Get().GetBufferAlignment();
+#if defined WIN32
             pMem = _aligned_malloc(in_size, alignment);
+#elif defined __linux__
+            pMem = memalign(alignment, in_size);
+#elif defined __MACH__
+            pMem = malloc(in_size);
+#else
+            pMem = valloc(in_size);
+#endif
         }
 
         // wrap aligned host memory in an OpenCL buffer
@@ -946,7 +959,11 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
         else
         {
             status = CL_OUT_OF_HOST_MEMORY;
-            _aligned_free(pMem);
+#if defined WIN32            
+            _aligned_free(out_pPtr);
+#else
+            free(out_pPtr);
+#endif
         }
         if (out_pStatus)
         {

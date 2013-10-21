@@ -28,4 +28,4 @@ add_executable(simple ${SIMPLE_SOURCES} ${SIMPLE_HEADERS})
 add_dependencies(simple
 	clu_generator
 	clu_runtime)
-target_link_libraries( simple OpenCL.lib clu_runtime ) 
+target_link_libraries( simple OpenCL clu_runtime ) 

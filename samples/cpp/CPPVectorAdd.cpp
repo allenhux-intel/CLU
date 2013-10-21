@@ -19,10 +19,12 @@ int main(void)
     cl::Buffer inputBBuffer(begin(inputB), end(inputB), true);
     cl::Buffer outputBuffer(begin(output), end(output), false);
 
+    cl::NDRange ndRange1(numElements);
+    cl::NDRange ndRange2(numElements);
+    cl::EnqueueArgs enqArgs( ndRange1, ndRange2);
+
     vectorAddKernel(
-        cl::EnqueueArgs(
-            cl::NDRange(numElements),
-            cl::NDRange(numElements)),
+        enqArgs,
         inputABuffer,
         inputBBuffer,
         outputBuffer);
