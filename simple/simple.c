@@ -12,6 +12,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include <stdio.h>
 #include "simple.cl.h"
+#define TEST_VALUE 42
 
 void main()
 {
@@ -36,10 +37,18 @@ void main()
     // enqueue my kernel
     params = CLU_DEFAULT_PARAMS;
     params.nd_range = CLU_ND1(bufferLength);
-    status = clugEnqueue_Simple(s, &params, 42, buf);
+    status = clugEnqueue_Simple(s, &params, TEST_VALUE, buf);
 
     // check the results
     mapped = (int*)clEnqueueMapBuffer(CLU_DEFAULT_Q, buf, CL_TRUE, CL_MAP_READ, 0, bufferSize, 0, 0, 0, &status);
+    if (TEST_VALUE == *mapped)
+    {
+        printf("Success\n");
+    }
+    else
+    {
+        printf("Error\n");
+    }
     clEnqueueUnmapMemObject(CLU_DEFAULT_Q, buf, mapped, 0, 0, 0);
 
     clReleaseMemObject(buf);

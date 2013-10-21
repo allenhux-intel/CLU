@@ -54,4 +54,6 @@ int main()
     status = clEnqueueUnmapMemObject(CLU_DEFAULT_Q, t1, pHalf, 0, 0, 0);
 
     cluRelease();
+
+    return 0;
 }

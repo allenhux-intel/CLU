@@ -981,6 +981,7 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
 //-----------------------------------------------------------------------------
 void CL_CALLBACK CLU_WaitOnAnyEventCallback(cl_event in_event, cl_int in_eventStatus, void* in_data)
 {
+    in_event = 0; // unused, remove compiler warning
     assert(CL_SUCCESS == in_eventStatus);
     clSetUserEventStatus((cl_event)in_data, CL_COMPLETE);
     clReleaseEvent((cl_event)in_data);
@@ -1041,7 +1042,7 @@ exit:
 clu_platform_info CLU_API_CALL cluGetPlatformInfo(cl_platform_id in_platformId, cl_int* out_pStatus)
 {
     clu_platform_info platformInfo = {0};
-    cl_int status;
+    cl_int status = CL_OUT_OF_HOST_MEMORY;
     try
     {
         status = clGetPlatformInfo(in_platformId, CL_PLATFORM_PROFILE,    CLU_UTIL_MAX_STRING_LENGTH, platformInfo.profile, 0);
@@ -1052,7 +1053,6 @@ clu_platform_info CLU_API_CALL cluGetPlatformInfo(cl_platform_id in_platformId, 
     }
     catch (...) // internal error
     {
-        status = CL_OUT_OF_HOST_MEMORY;
     }
     if (out_pStatus)
     {
@@ -1251,6 +1251,10 @@ const clu_image_format* CLU_Runtime::GetImageFormats(cl_uint* out_pArraySize, cl
                         m_imageFormats[index].supportedFlags |= memFlags;
                     }
 
+                    if (out_pStatus)
+                    {
+                        *out_pStatus = status;
+                    }
                 } // end loop over host access flags
             } // end loop over host pointer type flags
         } // end loop over access flags
@@ -1273,7 +1277,6 @@ const clu_image_format* CLU_API_CALL cluGetSupportedImageFormats(cl_uint* array_
     const clu_image_format* pFormats = 0;
     try
     {
-	    cl_context ctx = cluGetContext();
         pFormats = CLU_Runtime::Get().GetImageFormats(array_size, &status);
     }
     catch (...) // internal error, e.g. thrown by STL
