@@ -7,11 +7,9 @@ set(CPPVECTORADD_HEADERS
 	CPPVectorAddKernel.cl
 	${CLU_SOURCE_DIR}/samples/cpp/CPPVectorAddKernel.cl.h)	
 
-if (LINUX)
-    ADD_DEFINITIONS(
-        -std=c++0x  # Or -std=c++11 
-    )
-endif (LINUX)
+if (CMAKE_COMPILER_IS_GNUCXX)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")  # Or -std=c++11
+endif (CMAKE_COMPILER_IS_GNUCXX)
 
 add_custom_command(
 	OUTPUT CPPVectorAddKernel.cl.h
