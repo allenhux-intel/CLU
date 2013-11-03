@@ -63,7 +63,7 @@ void OCL_VALIDATE(cl_int in_status)
     }
 }
 #else
-#define OCL_VALIDATE(in_status)
+#define OCL_VALIDATE(in_status) ((void) in_status)
 #endif
 
 // cpu, gpu, accelerator, custom
