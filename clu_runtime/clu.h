@@ -176,7 +176,7 @@ INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange3(int global_dim_1, int
 
 INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
 {
-    clu_enqueue_params p = {0};
+    clu_enqueue_params p = {};
     return p;
 }
 
