@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #include "simple.cl.h"
 #define TEST_VALUE 42
 
-void main()
+int main()
 {
     int* mapped = 0;
     clu_enqueue_params params;
@@ -55,4 +55,5 @@ void main()
 
     // done using CLU
     cluRelease();
+    return 0;
 }
