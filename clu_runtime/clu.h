@@ -181,7 +181,7 @@ INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
 }
 
 /********************************************************************************************************/
-/* Utility Funtions                                                                                     */
+/* Utility Functions                                                                                     */
 /********************************************************************************************************/
 #define CLU_UTIL_MAX_STRING_LENGTH 256
 #define CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE (CLU_UTIL_MAX_STRING_LENGTH*128)
