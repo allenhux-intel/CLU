@@ -54,7 +54,7 @@ extern "C" {
 #define CLU_DEFAULT_PARAMS  cluGetDefaultParams()
 
 /********************************************************************************************************/
-/* CLU structures
+/* CLU structures                                                                                       */
 /********************************************************************************************************/
 
 typedef struct
@@ -85,7 +85,7 @@ typedef struct
 } clu_initialize_params;
 
 /********************************************************************************************************/
-/* Platform API
+/* Platform API                                                                                         */
 /********************************************************************************************************/
 
 CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange1(int global_dim_1, int local_dim_1, int offset_1);
@@ -154,7 +154,7 @@ cluWaitOnAnyEvent(const cl_event* event_list,
                   cl_uint         num_events);
 
 /********************************************************************************************************/
-/* APIs INLINEd for performance
+/* APIs INLINEd for performance                                                                         */
 /********************************************************************************************************/
 INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange1(int global_dim_1, int local_dim_1, int offset_1)
 {
@@ -181,7 +181,7 @@ INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
 }
 
 /********************************************************************************************************/
-/* Utility Funtions
+/* Utility Funtions                                                                                     */
 /********************************************************************************************************/
 #define CLU_UTIL_MAX_STRING_LENGTH 256
 #define CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE (CLU_UTIL_MAX_STRING_LENGTH*128)
@@ -292,7 +292,7 @@ cluGetSupportedImageFormats(cl_uint* array_size,
                             cl_int* errcode_ret); /* may be NULL */
 
 /********************************************************************************************************/
-/* String Functions: convert enums/defines to char*
+/* String Functions: convert enums/defines to char*                                                     */
 /********************************************************************************************************/
 
 /* Return a string from an OpenCL return code, e.g. CL_SUCCESS returns "CL_SUCCESS" */
