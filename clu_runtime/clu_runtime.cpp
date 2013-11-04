@@ -641,6 +641,11 @@ cl_uint CLU_Runtime::GetBufferAlignment()
 {
     if (0 == m_bufferAlignment)
     {
+        // Some architectures require at least 4KB alignment, in base and size,
+        // for 0-copy to work. As of OpenCL 2.0, there is no query for preferred alignment
+        // that would reveal this.
+        m_bufferAlignment = 4096;
+
         cl_uint numDevices = 0;
         clGetContextInfo(CLU_CONTEXT, CL_CONTEXT_NUM_DEVICES, sizeof(cl_uint), &numDevices, 0);
         cl_device_id* pDevices = new cl_device_id[numDevices];
@@ -651,11 +656,12 @@ cl_uint CLU_Runtime::GetBufferAlignment()
             clGetDeviceInfo(pDevices[i], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceAlign, 0);
             if (deviceAlign > m_bufferAlignment)
             {
-                m_bufferAlignment = deviceAlign;
+                m_bufferAlignment = deviceAlign / 8; // returns bits! want bytes.
             }
         }
         delete [] pDevices;
     }
+
     return m_bufferAlignment;
 }
 
@@ -926,6 +932,12 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
         if (in_size)
         {
             cl_uint alignment = CLU_Runtime::Get().GetBufferAlignment();
+
+            // round size up to the alignment.
+            // some architectures require aligned size for 0-copy to work properly.
+            in_size += (alignment - 1);
+            in_size &= ~(alignment - 1);
+
 #if defined WIN32
             pMem = _aligned_malloc(in_size, alignment);
 #elif defined __linux__
