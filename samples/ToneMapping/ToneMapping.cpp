@@ -21,68 +21,29 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #define CL_VERIFY(s, m) {if (CL_SUCCESS!=s) {printf("ERROR: %s\n",m);return;}}
 
-cl_int g_min_align = 0;
-
 //-----------------------------------------------------------------------------
 // Execute tone mapping kernel
 // this is all the important CL code in this example, from startup to shutdown
 //-----------------------------------------------------------------------------
-void ExecuteToneMappingKernel(cl_float* inputArray, cl_float* outputArray, CHDRData *pData, cl_uint arrayWidth, cl_uint arrayHeight)
+void ExecuteToneMappingKernel(cl_mem inputBuffer, cl_mem outputBuffer, CHDRData *pData, cl_uint imageWidth, cl_uint imageHeight)
 {
-    cluInitialize(0);
-
     cl_int status = CL_SUCCESS;
 
     clug_ToneMappingPerPixel s = clugCreate_ToneMappingPerPixel(&status);
     CL_VERIFY(status, cluGetBuildErrors(s.m_program));
 
     // allocate the buffer
-    cl_mem inputBuffer = clCreateBuffer(CLU_CONTEXT, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, sizeof(cl_float) * 4 * arrayWidth * arrayHeight, inputArray, &status);
-    CL_VERIFY(status, "Failed to create Input Buffer.\n");
-
-    cl_mem outputBuffer = clCreateBuffer(CLU_CONTEXT, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, sizeof(cl_float) * 4 * arrayWidth * arrayHeight, outputArray, &status);
-    CL_VERIFY(status, "Failed to create Output Buffer.\n");
-
     cl_mem HDRDataBuffer = clCreateBuffer(CLU_CONTEXT, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR, sizeof(CHDRData), pData, &status);
     CL_VERIFY(status, "Failed to create HDR Data Buffer.\n");
 
     clu_enqueue_params params = CLU_DEFAULT_PARAMS;
-    params.nd_range = cluNDRange2(arrayHeight, arrayWidth, BLOCK_DIM, BLOCK_DIM, 0, 0);
+    params.nd_range = cluNDRange2(imageHeight, imageWidth, BLOCK_DIM, BLOCK_DIM, 0, 0);
 
-    status = clugEnqueue_ToneMappingPerPixel(s, &params, inputBuffer, outputBuffer, HDRDataBuffer, arrayWidth);
-    status = clFinish(CLU_DEFAULT_Q);
+    status = clugEnqueue_ToneMappingPerPixel(s, &params, inputBuffer, outputBuffer, HDRDataBuffer, imageWidth);
 
-    // GPU implementations may require a map to force an update of the host pointer
-    void* tmp_ptr = clEnqueueMapBuffer(CLU_DEFAULT_Q, outputBuffer, true, CL_MAP_READ, 0, sizeof(cl_float) *  4 * arrayWidth * arrayHeight , 0, NULL, NULL, NULL);
-    if(tmp_ptr!=outputArray)
-    {
-        printf("ERROR: clEnqueueMapBuffer failed to return original pointer\n");
-        return;
-    }
-    clEnqueueUnmapMemObject(CLU_DEFAULT_Q, outputBuffer, tmp_ptr, 0, NULL, NULL);
+    status = clReleaseMemObject(HDRDataBuffer);
 
-    clReleaseMemObject(inputBuffer);
-    clReleaseMemObject(outputBuffer);
-    clReleaseMemObject(HDRDataBuffer);
-
-    clReleaseKernel(s.m_kernel);
-    cluRelease();
-}
-
-//-----------------------------------------------------------------------------
-// with the right buffer alignment, on some platforms, CL_MEM_USE_HOST_PTR
-// will result in the GPU using the host memory without a copy
-//-----------------------------------------------------------------------------
-void GetMinBufferAlignment()
-{
-    cluInitialize(0);
-
-    cl_device_id device = cluGetDevice(CL_DEVICE_TYPE_DEFAULT);
-    cl_int status = clGetDeviceInfo(device, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &g_min_align, NULL);
-    CL_VERIFY(status, "Failed to get device information (max memory base address align size).\n");
-    g_min_align /= 8; //in bytes
-
-    cluRelease();
+    status = clReleaseKernel(s.m_kernel);
 }
 
 unsigned char ClampFloat(float in_f)
@@ -96,15 +57,28 @@ unsigned char ClampFloat(float in_f)
 //-----------------------------------------------------------------------------
 // Write a float RGBA image to a (BGRA) BMP
 //-----------------------------------------------------------------------------
-bool SaveImageAsBMP (float* ptr, int width, int height, const char* fileName)
+bool SaveImageAsBMP (cl_mem in_buffer, int width, int height, const char* fileName)
 {
+    bool success = false;
+
     FILE* stream = NULL;
     printf("Save Image: %s \n", fileName);
     stream = fopen( fileName, "wb" );
 
     if( NULL == stream )
     {
-        return false;
+        goto ErrExit;
+    }
+
+    cl_uint imageSize = 0;
+    clGetMemObjectInfo(in_buffer, CL_MEM_SIZE, sizeof(imageSize), &imageSize, 0);
+
+    cl_float* ptr = (cl_float*)clEnqueueMapBuffer(CLU_DEFAULT_Q,
+        in_buffer, CL_TRUE, CL_MAP_READ, 0, imageSize, 0, NULL, NULL, NULL);
+
+    if (0 == ptr)
+    {
+        goto ErrExit;
     }
 
     BITMAPFILEHEADER fileHeader;
@@ -173,19 +147,18 @@ bool SaveImageAsBMP (float* ptr, int width, int height, const char* fileName)
         fwrite( buffer, 1, alignSize, stream );
     }
 
-    fclose( stream );
-    return true;
+    success = true;
 ErrExit:
-    fclose( stream );
-    return false;
+    fclose(stream);
+    clEnqueueUnmapMemObject(CLU_DEFAULT_Q, in_buffer, ptr, 0, 0, 0);
+    return success;
 }
 
 //-----------------------------------------------------------------------------
 // HDR image loading utility
 //-----------------------------------------------------------------------------
-cl_float* ReadHDRimage(cl_uint* arrayWidth, cl_uint* arrayHeight)
+cl_mem ReadHDRimage(cl_uint* out_pImageWidth, cl_uint* out_pImageHeight, cl_uint* out_pImageSize)
 {
-
     //Load from HDR-image
 
     //Variables 
@@ -217,11 +190,17 @@ cl_float* ReadHDRimage(cl_uint* arrayWidth, cl_uint* arrayHeight)
     }
 
     // The image size in memory (bytes).
-    iMemSize = iWidth*iHeight*4*sizeof(cl_float); 
+    iMemSize = iWidth*iHeight*4*sizeof(cl_float);
 
     // Allocate memory.
-    cl_float* inputArray = (cl_float*)_aligned_malloc(iMemSize, g_min_align);
-    if(!inputArray)
+    cl_int status = CL_SUCCESS;
+    cl_mem buffer = cluCreateAlignedBuffer(0, iMemSize, 0, &status);
+
+    // map buffer to reach OpenCL synchronization point (for cross-platform compatibility)
+    cl_float* pData = (cl_float*)clEnqueueMapBuffer(CLU_DEFAULT_Q,
+        buffer, CL_TRUE, CL_MAP_READ, 0, iMemSize, 0, NULL, NULL, &status);
+
+    if(!pData)
     {
         printf("Failed to allocate memory for input HDR image!\n");
         fclose(pRGBAFile);
@@ -229,24 +208,24 @@ cl_float* ReadHDRimage(cl_uint* arrayWidth, cl_uint* arrayHeight)
     }
 
     // Read data from the input file to memory. 
-    fread((void*)inputArray, 1, iMemSize, pRGBAFile);
+    fread((void*)pData, 1, iMemSize, pRGBAFile);
+    fclose(pRGBAFile);
 
     // Extended dynamic range 
     for(int i = 0; i < iWidth*iHeight*4; i++)
     {
-        inputArray[i] = 5.0f*inputArray[i];
+        pData[i] = 5.0f*pData[i];
     }
 
+    // unmap the host pointer
+    status = clEnqueueUnmapMemObject(CLU_DEFAULT_Q, buffer, pData, 0, 0, 0);
+
     // HDR-image height & width
-    *arrayWidth = iWidth;
-    *arrayHeight = iHeight;
+    *out_pImageWidth = iWidth;
+    *out_pImageHeight = iHeight;
+    *out_pImageSize = iMemSize;
 
-    fclose(pRGBAFile);
-
-    // Save input image in bitmap file (without tone mapping, just linear scale and crop)
-    SaveImageAsBMP( inputArray, iWidth, iHeight, "ToneMappingInput.bmp");
-
-    return inputArray;
+    return buffer;
 }
 
 //-----------------------------------------------------------------------------
@@ -284,8 +263,11 @@ float ResetFStopsParameter( float powKLow, float kHigh )
 //-----------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
-    cl_uint arrayWidth;
-    cl_uint arrayHeight;
+    cluInitialize(0);
+
+    cl_uint imageWidth;
+    cl_uint imageHeight;
+    cl_uint imageSize;
 
     //init HDR parameters
     float kLow = -3.0f;
@@ -311,29 +293,30 @@ int main(int argc, char* argv[])
 
     HDRData.fFStopsInv = 1.0f/HDRData.fFStops;
     
-    //fill input frame
-    cl_float* inputArray = 0;
-
-    GetMinBufferAlignment();
-
     //read input image
-    inputArray = ReadHDRimage(&arrayWidth, &arrayHeight);
-    if(inputArray==0)
+    cl_mem inputBuffer = ReadHDRimage(&imageWidth, &imageHeight, &imageSize);
+    if(0 == inputBuffer)
+    {
         return -1;
+    }
 
+    // create aligned output buffer
+    cl_int status = CL_SUCCESS;
+    cl_mem outputBuffer = cluCreateAlignedBuffer(0, imageSize, 0, &status);
 
-    printf("Input size is %d X %d\n", arrayWidth, arrayHeight);
-    cl_float* outputArray = (cl_float*)_aligned_malloc(sizeof(cl_float) * 4 * arrayWidth * arrayHeight, g_min_align);
+    printf("Input size is %d X %d\n", imageWidth, imageHeight);
 
     //do tone mapping
     printf("Executing OpenCL kernel...\n");
-    ExecuteToneMappingKernel(inputArray, outputArray, &HDRData, arrayWidth, arrayHeight);
+    ExecuteToneMappingKernel(inputBuffer, outputBuffer, &HDRData, imageWidth, imageHeight);
 
     //save results in bitmap files
-    SaveImageAsBMP(outputArray, arrayWidth, arrayHeight, "ToneMappingOutput.bmp");
+    SaveImageAsBMP(inputBuffer, imageWidth, imageHeight, "ToneMappingInput.bmp");
+    SaveImageAsBMP(outputBuffer, imageWidth, imageHeight, "ToneMappingOutput.bmp");
 
-    _aligned_free( inputArray );
-    _aligned_free( outputArray );
+    clReleaseMemObject(inputBuffer);
+    clReleaseMemObject(outputBuffer);
 
+    cluRelease();
     return 0;
 }
