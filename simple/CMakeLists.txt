@@ -5,18 +5,18 @@ set(SIMPLE_SOURCES
 
 set(SIMPLE_HEADERS
 	simple.cl
-	${CLU_SOURCE_DIR}/simple/simple.cl.h)	
+	${CMAKE_CURRENT_BINARY_DIR}/simple.cl.h)
 
 add_custom_command(
 	OUTPUT simple.cl.h
-	COMMAND clu_generator simple.cl
+	COMMAND clu_generator -o simple.cl.h ${CMAKE_CURRENT_SOURCE_DIR}/simple.cl
 	DEPENDS simple.cl
-	COMMENT "Generating through CLU ..."
-	WORKING_DIRECTORY "${CLU_SOURCE_DIR}/simple/")
+	COMMENT "Generating through CLU ...")
 
 include_directories(
    ${OPENCL_DIST_DIR}/include
-   ${CLU_SOURCE_DIR}/clu_runtime)
+   ${CLU_SOURCE_DIR}/clu_runtime
+   ${CMAKE_CURRENT_BINARY_DIR})
 
 if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
   link_directories( ${OPENCL_DIST_DIR}/lib/x86_64 )
@@ -28,4 +28,4 @@ add_executable(simple ${SIMPLE_SOURCES} ${SIMPLE_HEADERS})
 add_dependencies(simple
 	clu_generator
 	clu_runtime)
-target_link_libraries( simple OpenCL.lib clu_runtime ) 
+target_link_libraries( simple OpenCL clu_runtime )

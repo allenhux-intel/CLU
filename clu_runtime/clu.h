@@ -54,7 +54,7 @@ extern "C" {
 #define CLU_DEFAULT_PARAMS  cluGetDefaultParams()
 
 /********************************************************************************************************/
-/* CLU structures
+/* CLU structures                                                                                       */
 /********************************************************************************************************/
 
 typedef struct
@@ -85,7 +85,7 @@ typedef struct
 } clu_initialize_params;
 
 /********************************************************************************************************/
-/* Platform API
+/* Platform API                                                                                         */
 /********************************************************************************************************/
 
 CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange1(int global_dim_1, int local_dim_1, int offset_1);
@@ -154,34 +154,34 @@ cluWaitOnAnyEvent(const cl_event* event_list,
                   cl_uint         num_events);
 
 /********************************************************************************************************/
-/* APIs INLINEd for performance
+/* APIs INLINEd for performance                                                                         */
 /********************************************************************************************************/
 INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange1(int global_dim_1, int local_dim_1, int offset_1)
 {
-    clu_nd_range range = {1, {global_dim_1, 0, 0}, {local_dim_1, 0, 0}, {offset_1, 0, 0}};
+    clu_nd_range range = {1, {(size_t) global_dim_1, 0, 0}, {(size_t) local_dim_1, 0, 0}, {(size_t) offset_1, 0, 0}};
     return range;
 }
 
 INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange2(int global_dim_1, int global_dim_2, int local_dim_1, int local_dim_2, int offset_1, int offset_2)
 {
-    clu_nd_range range = {2, {global_dim_1, global_dim_2, 0}, {local_dim_1, local_dim_2, 0}, {offset_1, offset_2, 0}};
+    clu_nd_range range = {2, {(size_t) global_dim_1, (size_t) global_dim_2, 0}, {(size_t) local_dim_1, (size_t) local_dim_2, 0}, {(size_t) offset_1, (size_t) offset_2, 0}};
     return range;
 }
 
 INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange3(int global_dim_1, int global_dim_2, int global_dim_3, int local_dim_1, int local_dim_2, int local_dim_3, int offset_1, int offset_2, int offset_3)
 {
-    clu_nd_range range = {3, {global_dim_1, global_dim_2, global_dim_3}, {local_dim_1, local_dim_2, local_dim_3}, {offset_1, offset_2, offset_3}};
+    clu_nd_range range = {3, {(size_t) global_dim_1, (size_t) global_dim_2, (size_t) global_dim_3}, {(size_t) local_dim_1, (size_t) local_dim_2, (size_t) local_dim_3}, {(size_t) offset_1, (size_t) offset_2, (size_t) offset_3}};
     return range;
 }
 
 INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
 {
-    clu_enqueue_params p = {0};
+    clu_enqueue_params p = {};
     return p;
 }
 
 /********************************************************************************************************/
-/* Utility Funtions
+/* Utility Functions                                                                                     */
 /********************************************************************************************************/
 #define CLU_UTIL_MAX_STRING_LENGTH 256
 #define CLU_UTIL_PLATFORM_EXTENSION_ARRAY_SIZE (CLU_UTIL_MAX_STRING_LENGTH*128)
@@ -292,7 +292,7 @@ cluGetSupportedImageFormats(cl_uint* array_size,
                             cl_int* errcode_ret); /* may be NULL */
 
 /********************************************************************************************************/
-/* String Functions: convert enums/defines to char*
+/* String Functions: convert enums/defines to char*                                                     */
 /********************************************************************************************************/
 
 /* Return a string from an OpenCL return code, e.g. CL_SUCCESS returns "CL_SUCCESS" */

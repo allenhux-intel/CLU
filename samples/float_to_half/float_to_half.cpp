@@ -18,7 +18,7 @@ int main()
 {
     cl_int status = cluInitialize(0);
 
-    char* pK = "kernel void Convert(global float* in_f, global half* out_f) {"
+    const char* pK = "kernel void Convert(global float* in_f, global half* out_f) {"
         "    int gid = get_global_id(0);"
         //"out_f[gid] = in_f[gid]; }"; // no free float->half conversion
         "    vstore_half(in_f[gid], gid, out_f);}";

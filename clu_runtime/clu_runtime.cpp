@@ -63,7 +63,7 @@ void OCL_VALIDATE(cl_int in_status)
     }
 }
 #else
-#define OCL_VALIDATE(in_status)
+#define OCL_VALIDATE(in_status) ((void) in_status)
 #endif
 
 // cpu, gpu, accelerator, custom
@@ -1303,7 +1303,7 @@ const clu_image_format* CLU_API_CALL cluGetSupportedImageFormats(cl_uint* array_
 }
 
 /********************************************************************************************************/
-/* String Functions: convert enums/defines to char*
+/* String Functions: convert enums/defines to char*                                                     */
 /********************************************************************************************************/
 
 #define CLU_ENUM_TO_STRING_CASE(X) case X : return #X;
