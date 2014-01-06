@@ -906,7 +906,7 @@ cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
 void CL_CALLBACK CLU_ReleaseAlignedBufferCallback(cl_mem in_buffer, void* in_pHostPtr)
 {
     in_buffer = 0; // unused, fixes compile warning about unused param.
-#if defined WIN32            
+#if defined _WIN32            
     _aligned_free(in_pHostPtr);
 #else
     free(in_pHostPtr);
