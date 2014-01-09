@@ -938,7 +938,7 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
             in_size += (alignment - 1);
             in_size &= ~(alignment - 1);
 
-#if defined WIN32
+#if defined _WIN32
             pMem = _aligned_malloc(in_size, alignment);
 #elif defined __linux__
             pMem = memalign(alignment, in_size);
@@ -971,7 +971,7 @@ cl_mem CLU_API_CALL cluCreateAlignedBuffer(
         else
         {
             status = CL_OUT_OF_HOST_MEMORY;
-#if defined WIN32            
+#if defined _WIN32            
             _aligned_free(out_pPtr);
 #else
             free(out_pPtr);
