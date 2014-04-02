@@ -141,6 +141,9 @@ public:
     cl_program   BuildProgram(cl_uint in_numSources,
                               const char** in_sources, const size_t* in_source_lengths,
                               const char* in_buildOptions, cl_int *out_pStatus);
+    cl_program   BuildProgram(cl_uint in_numBinaries,
+                              const size_t* in_binary_lengths, const unsigned char** in_binaries,
+                              const char* in_buildOptions, cl_int *out_pStatus);
     const char*  GetBuildErrors(cl_program program);
 
     cl_device_id GetDevice(cl_device_type in_clDeviceType);
@@ -156,6 +159,9 @@ public:
     // subsequently return hashed program
     cl_program   HashProgram(cl_uint in_numSources,
                               const char** in_sources, const size_t* in_source_lengths,
+                              const char* in_buildOptions, cl_int *out_pStatus);
+    cl_program   HashProgram(cl_uint in_numBinaries,
+                              const size_t* in_binary_lengths, const unsigned char** in_binaries,
                               const char* in_buildOptions, cl_int *out_pStatus);
 
     // return an array of image formats supported in a given CL context
@@ -609,6 +615,36 @@ cl_program CLU_Runtime::HashProgram(
     return program;
 }
 
+cl_program CLU_Runtime::HashProgram(
+    cl_uint in_numBinaries, const size_t* in_binary_lengths, const unsigned char** in_binaries,
+    const char* in_buildOptions,
+    cl_int*     out_pStatus)
+{
+    cl_int status = CL_SUCCESS;
+
+    // because this is called by generated code, we can be confident that the
+    // source passed in is at an address that is constant for the lifetime of
+    // the application. Hence, it's suitable for use as a hash key:
+    const void* hashKey = in_binaries;
+
+    cl_program program = m_programMap[hashKey]; // find program in hash
+    if (0 == program) // hasn't been built yet?
+    {
+        program = BuildProgram(in_numBinaries, in_binary_lengths, in_binaries, in_buildOptions, &status);
+        if (program) // if successful
+        {
+            AddObject(program); // manage lifetime
+            m_programMap[hashKey] = program; // add to hash
+        }
+    }
+
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+    return program;
+}
+
 //-----------------------------------------------------------------------------
 // Build a program
 //-----------------------------------------------------------------------------
@@ -630,6 +666,44 @@ cl_program CLU_Runtime::BuildProgram(
     {
         *out_pStatus = status;
     }
+
+    return program;
+}
+
+cl_program CLU_Runtime::BuildProgram(
+    cl_uint in_numBinaries, const size_t* in_binary_lengths, const unsigned char** in_binaries,
+    const char* in_buildOptions,
+    cl_int*     out_pStatus)
+{
+    cl_int status = CL_SUCCESS;
+
+    size_t* pLengths = 0;
+    unsigned char **pBinaries = 0;
+    if (in_numBinaries < m_numDevices)
+    {
+        pLengths = new size_t[m_numDevices];
+        pBinaries = new unsigned char *[m_numDevices];
+        for (cl_uint i = 0; i < m_numDevices; i++)
+        {
+            pLengths[i] = in_binary_lengths[0];
+            pBinaries[i] = (unsigned char*) in_binaries[0];
+        }
+    }
+
+    cl_context context = GetContext();
+    cl_program program = clCreateProgramWithBinary(context, m_numDevices, m_deviceIds, pLengths, (const unsigned char **) pBinaries, 0, &status);
+    OCL_VALIDATE(status);
+
+    status = clBuildProgram(program, m_numDevices, m_deviceIds, in_buildOptions, 0, 0);
+    OCL_VALIDATE(status);
+
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+
+    delete [] pLengths;
+    delete [] pBinaries;
 
     return program;
 }
@@ -822,6 +896,40 @@ cluBuildSource(const char* in_source,
 }
 
 //-----------------------------------------------------------------------------
+// Build a program for all current devices from binary
+//-----------------------------------------------------------------------------
+cl_program CLU_API_CALL
+cluBuildBinary(size_t binary_length,
+              const unsigned char* in_binary,
+              cl_int * errcode_ret) /* may be NULL */
+{
+    cl_program program = 0;
+    cl_int status = CL_INVALID_VALUE;
+
+    size_t* pLength = 0;
+    if (0 != binary_length)
+    {
+        pLength = &binary_length;
+    }
+
+    try
+    {
+        const char* buildOptions = CLU_Runtime::Get().GetBuildOptions();
+        program = CLU_Runtime::Get().BuildProgram(1, pLength, &in_binary, buildOptions, &status);
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_BUILD_PROGRAM_FAILURE;
+    }
+
+    if (errcode_ret)
+    {
+        *errcode_ret = status;
+    }
+    return program;
+}
+
+//-----------------------------------------------------------------------------
 // Build a program for all current devices from source
 //   can override global build options
 //-----------------------------------------------------------------------------
@@ -868,6 +976,52 @@ cluBuildSourceArray(cl_uint num_sources,
 }
 
 //-----------------------------------------------------------------------------
+// Build a program for all current devices from binary
+//   can override global build options
+//-----------------------------------------------------------------------------
+cl_program CLU_API_CALL
+cluBuildBinaryArray(cl_uint num_binaries,
+                   const size_t* binary_lengths,
+                   const unsigned char** binaries,
+                   const char*  compile_options, /* may be NULL */
+                   cl_int * errcode_ret)         /* may be NULL */
+{
+    cl_program program = 0;
+    cl_int status = CL_INVALID_VALUE;
+    try
+    {
+        // was this build called by the clu code generator?
+        // if so, we should be smart about handling the program object
+        if (0 == strncmp(CLU_MAGIC_BUILD_FLAG, compile_options, strlen(CLU_MAGIC_BUILD_FLAG)))
+        {
+            compile_options = CLU_Runtime::Get().GetBuildOptions();
+            // this will retrieve it from a hash or build it if it's not there:
+            program = CLU_Runtime::Get().HashProgram(num_binaries, binary_lengths, binaries,
+                compile_options, &status);
+        }
+        else
+        {
+            if (0 == compile_options)
+            {
+                compile_options = CLU_Runtime::Get().GetBuildOptions();
+            }
+            program = CLU_Runtime::Get().BuildProgram(num_binaries, binary_lengths, binaries,
+                compile_options, &status);
+        }
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_BUILD_PROGRAM_FAILURE;
+    }
+
+    if (errcode_ret)
+    {
+        *errcode_ret = status;
+    }
+    return program;
+}
+
+//-----------------------------------------------------------------------------
 // convert a source file into a cl_program
 //-----------------------------------------------------------------------------
 cl_program CLU_API_CALL
@@ -884,6 +1038,39 @@ cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
             {
                 std::string s((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
                 program = cluBuildSource((const char *) s.c_str(), s.size(), &status);
+                ifs.close();
+            }
+        } // end if non-null file name string
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_OUT_OF_HOST_MEMORY;
+    }
+
+    if (errcode_ret)
+    {
+        *errcode_ret = status;
+    }
+    return program;
+}
+
+//-----------------------------------------------------------------------------
+// convert a binary file into a cl_program
+//-----------------------------------------------------------------------------
+cl_program CLU_API_CALL
+cluBuildBinaryFromFile(const char* in_pFileName, cl_int * errcode_ret)
+{
+    cl_int status = CL_INVALID_VALUE;
+    cl_program program = 0;
+    try
+    {
+        if (in_pFileName)
+        {
+            std::ifstream ifs(in_pFileName, std::ios::in | std::ios::binary);
+            if (ifs.is_open())
+            {
+                std::string s((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+                program = cluBuildBinary(s.size(), (const unsigned char *) s.c_str(), &status);
                 ifs.close();
             }
         } // end if non-null file name string
