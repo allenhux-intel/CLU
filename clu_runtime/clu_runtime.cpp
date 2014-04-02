@@ -138,8 +138,8 @@ public:
     template<typename T> void AddObject(T o);
 
     // common build function
-    cl_program   BuildProgram(cl_uint in_numStrings,
-                              const char** in_strings, const size_t* in_string_lengths,
+    cl_program   BuildProgram(cl_uint in_numSources,
+                              const char** in_sources, const size_t* in_source_lengths,
                               const char* in_buildOptions, cl_int *out_pStatus);
     const char*  GetBuildErrors(cl_program program);
 
@@ -154,8 +154,8 @@ public:
 
     // used by code generator: build and has program on first call,
     // subsequently return hashed program
-    cl_program   HashProgram(cl_uint in_numStrings,
-                              const char** in_strings, const size_t* in_string_lengths,
+    cl_program   HashProgram(cl_uint in_numSources,
+                              const char** in_sources, const size_t* in_source_lengths,
                               const char* in_buildOptions, cl_int *out_pStatus);
 
     // return an array of image formats supported in a given CL context
@@ -580,21 +580,21 @@ const char* CLU_Runtime::GetBuildErrors(cl_program in_program)
 // Build a program, called by generated code
 //-----------------------------------------------------------------------------
 cl_program CLU_Runtime::HashProgram(
-    cl_uint in_numStrings, const char** in_strings, const size_t* in_string_lengths,
+    cl_uint in_numSources, const char** in_sources, const size_t* in_source_lengths,
     const char* in_buildOptions,
     cl_int*     out_pStatus)
 {
     cl_int status = CL_SUCCESS;
 
     // because this is called by generated code, we can be confident that the
-    // string passed in is at an address that is constant for the lifetime of
+    // source passed in is at an address that is constant for the lifetime of
     // the application. Hence, it's suitable for use as a hash key:
-    const void* hashKey = in_strings;
+    const void* hashKey = in_sources;
 
     cl_program program = m_programMap[hashKey]; // find program in hash
     if (0 == program) // hasn't been built yet?
     {
-        program = BuildProgram(in_numStrings, in_strings, in_string_lengths, in_buildOptions, &status);
+        program = BuildProgram(in_numSources, in_sources, in_source_lengths, in_buildOptions, &status);
         if (program) // if successful
         {
             AddObject(program); // manage lifetime
@@ -613,14 +613,14 @@ cl_program CLU_Runtime::HashProgram(
 // Build a program
 //-----------------------------------------------------------------------------
 cl_program CLU_Runtime::BuildProgram(
-    cl_uint in_numStrings, const char** in_strings, const size_t* in_string_lengths,
+    cl_uint in_numSources, const char** in_sources, const size_t* in_source_lengths,
     const char* in_buildOptions,
     cl_int*     out_pStatus)
 {
     cl_int status = CL_SUCCESS;
 
     cl_context context = GetContext();
-    cl_program program = clCreateProgramWithSource(context, in_numStrings, in_strings, in_string_lengths, &status);
+    cl_program program = clCreateProgramWithSource(context, in_numSources, in_sources, in_source_lengths, &status);
     OCL_VALIDATE(status);
 
     status = clBuildProgram(program, m_numDevices, m_deviceIds, in_buildOptions, 0, 0);
@@ -788,26 +788,26 @@ const char * CLU_API_CALL cluGetBuildErrors(cl_program in_program)
 }
 
 //-----------------------------------------------------------------------------
-// Build a program for all current devices from a string
+// Build a program for all current devices from source
 //-----------------------------------------------------------------------------
 cl_program CLU_API_CALL
-cluBuildSource(const char* in_string,
-              size_t string_length, /* may be NULL */
+cluBuildSource(const char* in_source,
+              size_t source_length, /* may be zero */
               cl_int * errcode_ret) /* may be NULL */
 {
     cl_program program = 0;
     cl_int status = CL_INVALID_VALUE;
 
     size_t* pLength = 0;
-    if (0 != string_length)
+    if (0 != source_length)
     {
-        pLength = &string_length;
+        pLength = &source_length;
     }
 
     try
     {
         const char* buildOptions = CLU_Runtime::Get().GetBuildOptions();
-        program = CLU_Runtime::Get().BuildProgram(1, &in_string, pLength, buildOptions, &status);
+        program = CLU_Runtime::Get().BuildProgram(1, &in_source, pLength, buildOptions, &status);
     }
     catch (...) // internal error, e.g. thrown by STL
     {
@@ -822,12 +822,13 @@ cluBuildSource(const char* in_string,
 }
 
 //-----------------------------------------------------------------------------
-// Build a program for all current devices from a string
+// Build a program for all current devices from source
 //   can override global build options
 //-----------------------------------------------------------------------------
 cl_program CLU_API_CALL
-cluBuildSourceArray(cl_uint num_strings,
-                   const char** strings,
+cluBuildSourceArray(cl_uint num_sources,
+                   const char** sources,
+                   const size_t* source_lengths, /* may be NULL */
                    const char*  compile_options, /* may be NULL */
                    cl_int * errcode_ret)         /* may be NULL */
 {
@@ -841,7 +842,7 @@ cluBuildSourceArray(cl_uint num_strings,
         {
             compile_options = CLU_Runtime::Get().GetBuildOptions();
             // this will retrieve it from a hash or build it if it's not there:
-            program = CLU_Runtime::Get().HashProgram(num_strings, strings, 0,
+            program = CLU_Runtime::Get().HashProgram(num_sources, sources, source_lengths,
                 compile_options, &status);
         }
         else
@@ -850,7 +851,7 @@ cluBuildSourceArray(cl_uint num_strings,
             {
                 compile_options = CLU_Runtime::Get().GetBuildOptions();
             }
-            program = CLU_Runtime::Get().BuildProgram(num_strings, strings, 0,
+            program = CLU_Runtime::Get().BuildProgram(num_sources, sources, source_lengths,
                 compile_options, &status);
         }
     }
@@ -878,11 +879,11 @@ cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
     {
         if (in_pFileName)
         {
-            std::ifstream ifs(in_pFileName);
+            std::ifstream ifs(in_pFileName, std::ios::in);
             if (ifs.is_open())
             {
                 std::string s((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-                program = cluBuildSource(s.c_str(), s.size(), &status);
+                program = cluBuildSource((const char *) s.c_str(), s.size(), &status);
                 ifs.close();
             }
         } // end if non-null file name string
