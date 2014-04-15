@@ -122,22 +122,42 @@ cluEnqueue(cl_kernel kern,
 extern CLU_API_ENTRY const char * CLU_API_CALL
 cluGetBuildErrors(cl_program program);
 
-/* Build a program for all current devices from a string */
+/* Build a program for all current devices from source */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
-cluBuildSource(const char* in_string,
-               size_t      string_length,  /* may be NULL */
+cluBuildSource(const char* in_source,
+               size_t      source_length,  /* may be zero */
                cl_int*     errcode_ret);   /* may be NULL */
 
-/* Build a program for all current devices from an array of strings */
+/* Build a program for all current devices from binary */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
-cluBuildSourceArray(cl_uint      num_strings,
-                    const char** strings,
-                    const char*  compile_options,  /* may be NULL */
-                    cl_int*      errcode_ret);     /* may be NULL */
+cluBuildBinary(size_t               binary_length,
+               const unsigned char* in_binary,
+               cl_int*              errcode_ret);   /* may be NULL */
+
+/* Build a program for all current devices from an array of sources */
+extern CLU_API_ENTRY cl_program CLU_API_CALL
+cluBuildSourceArray(cl_uint       num_sources,
+                    const char**  sources,
+                    const size_t* source_length,    /* may be NULL */
+                    const char*   compile_options,  /* may be NULL */
+                    cl_int*       errcode_ret);     /* may be NULL */
+
+/* Build a program for all current devices from an array of binaries */
+extern CLU_API_ENTRY cl_program CLU_API_CALL
+cluBuildBinaryArray(cl_uint               num_binaries,
+                    const size_t*         binary_length,
+                    const unsigned char** binaries,
+                    const char*           compile_options,  /* may be NULL */
+                    cl_int*               errcode_ret);     /* may be NULL */
 
 /* Loads a source file and builds a program for all current devices */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
 cluBuildSourceFromFile(const char* file_name,
+                       cl_int*     errcode_ret); /* may be NULL */
+
+/* Loads a binary file and builds a program for all current devices */
+extern CLU_API_ENTRY cl_program CLU_API_CALL
+cluBuildBinaryFromFile(const char* file_name,
                        cl_int*     errcode_ret); /* may be NULL */
 
 /* Allocate host memory aligned for optimal access and create a buffer using it */
