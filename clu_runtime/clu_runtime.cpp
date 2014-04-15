@@ -728,9 +728,10 @@ cl_uint CLU_Runtime::GetBufferAlignment()
         {
             cl_uint deviceAlign = 0;
             clGetDeviceInfo(pDevices[i], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceAlign, 0);
+            deviceAlign /= 8; // returns bits! want bytes.
             if (deviceAlign > m_bufferAlignment)
             {
-                m_bufferAlignment = deviceAlign / 8; // returns bits! want bytes.
+                m_bufferAlignment = deviceAlign;
             }
         }
         delete [] pDevices;
