@@ -146,6 +146,7 @@ public:
                               const char* in_buildOptions, cl_int *out_pStatus);
     const char*  GetBuildErrors(cl_program program);
 
+    cl_platform_id GetPlatform()                 {return m_platform;}
     cl_device_id GetDevice(cl_device_type in_clDeviceType);
     cl_command_queue GetCommandQueue(cl_device_type in_clDeviceType, cl_int* out_status);
     cl_context   GetContext()                    {return m_context;}
@@ -175,6 +176,7 @@ private:
     static CLU_Runtime g_runtime;
 
     bool             m_isInitialized;
+    cl_platform_id   m_platform; // default platform
     cl_context       m_context; // default context
     cl_command_queue m_commandQueue[CLU_MAX_NUM_DEVICES];
     cl_command_queue_properties m_queueProperties;
@@ -252,6 +254,7 @@ template<typename T> void CLU_Runtime::AddObject(T t)
 //-----------------------------------------------------------------------------
 void CLU_Runtime::Reset()
 {
+    m_platform=0;
     m_context=0;
     m_numDevices=0;
     m_queueProperties = 0;
@@ -395,21 +398,20 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
-        cl_platform_id platform = 0;
         if (in_params.vendor_name)
         {
-            platform = GetPlatformByVendor(numPlatforms, platforms, in_params.vendor_name, &status);
+            m_platform = GetPlatformByVendor(numPlatforms, platforms, in_params.vendor_name, &status);
             OCL_VALIDATE(status);
             if (CL_SUCCESS != status) goto exit;
         }
 
-        if (0 == platform)
+        if (0 == m_platform)
         {
-            platform = GetPlatformDefault(numPlatforms, platforms, deviceType);
+            m_platform = GetPlatformDefault(numPlatforms, platforms, deviceType);
         }
 
         // should have a platform now.
-        if (0 == platform)
+        if (0 == m_platform)
         {
             status = CL_DEVICE_NOT_FOUND;
             goto exit;
@@ -417,7 +419,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
 
         // get # of devices & device Ids
         // here we have a platform, no context yet
-        status = clGetDeviceIDs(platform, deviceType, 0, 0, &m_numDevices);
+        status = clGetDeviceIDs(m_platform, deviceType, 0, 0, &m_numDevices);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -427,7 +429,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         {
             m_numDevices = CLU_MAX_NUM_DEVICES;
         }
-        status = clGetDeviceIDs(platform, deviceType, m_numDevices, m_deviceIds, 0);
+        status = clGetDeviceIDs(m_platform, deviceType, m_numDevices, m_deviceIds, 0);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -459,7 +461,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         } // end if there are default context properties
         properties[propNum] = CL_CONTEXT_PLATFORM;
         ++propNum;
-        properties[propNum] = (cl_context_properties)platform;
+        properties[propNum] = (cl_context_properties)m_platform;
         ++propNum;
         properties[propNum] = (cl_context_properties)0;
 
@@ -815,6 +817,15 @@ cl_device_id CLU_API_CALL
 cluGetDevice(cl_device_type in_clDeviceType)
 {
     return CLU_Runtime::Get().GetDevice(in_clDeviceType);
+}
+
+//-----------------------------------------------------------------------------
+// Return cl_platform_id
+//   may have been chosen by the runtime, or provided with cluInitialize
+//-----------------------------------------------------------------------------
+cl_platform_id CLU_API_CALL cluGetPlatform()
+{
+    return CLU_Runtime::Get().GetPlatform();
 }
 
 //-----------------------------------------------------------------------------

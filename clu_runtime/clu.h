@@ -46,6 +46,7 @@ extern "C" {
 #define CLU_ND3(x,y,z)      cluNDRange3(x,y,z, 0,0,0, 0,0,0)
 
 #define CLU_DEFAULT_Q       cluGetCommandQueue(CL_DEVICE_TYPE_DEFAULT,0)
+#define CLU_ACCELERATOR_Q   cluGetCommandQueue(CL_DEVICE_TYPE_ACCELERATOR,0)
 #define CLU_GPU_Q           cluGetCommandQueue(CL_DEVICE_TYPE_GPU,0)
 #define CLU_CPU_Q           cluGetCommandQueue(CL_DEVICE_TYPE_CPU,0)
 
@@ -102,7 +103,10 @@ cl_bool CLU_API_CALL cluIsInitialized(void);
 extern CLU_API_ENTRY void CLU_API_CALL
 cluRelease(void);
 
-/* Device, Context, and Queue APIs */
+/* Platform, Device, Context, and Queue APIs */
+extern CLU_API_ENTRY cl_platform_id CLU_API_CALL
+cluGetPlatform();
+
 extern CLU_API_ENTRY cl_device_id CLU_API_CALL
 cluGetDevice(cl_device_type device_type);
 
@@ -296,9 +300,10 @@ typedef struct
     cl_bool             supports3D;
 } clu_image_format;
 
-/* Return a struct describing the available CL platforms */
+/* Return a struct describing the capabilities of a CL platform */
 extern CLU_API_ENTRY clu_platform_info CLU_API_CALL
-cluGetPlatformInfo(cl_platform_id id, cl_int* errcode_ret); /* may be NULL */
+cluGetPlatformInfo(cl_platform_id id,
+                   cl_int* errcode_ret); /* may be NULL */
 
 /* return a struct describing the capabilities of a CL device */
 extern CLU_API_ENTRY clu_device_info CLU_API_CALL
