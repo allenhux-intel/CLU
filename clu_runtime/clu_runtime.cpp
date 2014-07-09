@@ -1443,7 +1443,7 @@ const clu_image_format* CLU_Runtime::GetImageFormats(cl_uint* out_pArraySize, cl
                         bool newFormat = (iter == formatMap.end());
                         if (newFormat)
                         {
-                            index = m_imageFormats.size();
+                            index = (cl_uint)m_imageFormats.size();
                             m_imageFormats.resize(index+1);
                             formatMap[formats[f]] = index;
                             m_imageFormats[index].pixelFormat = formats[f];
@@ -1474,7 +1474,7 @@ const clu_image_format* CLU_Runtime::GetImageFormats(cl_uint* out_pArraySize, cl
 
     delete [] formats;
 
-    *out_pArraySize = m_imageFormats.size();
+    *out_pArraySize = (cl_uint)m_imageFormats.size();
     return &m_imageFormats[0];
 }
 
