@@ -947,7 +947,7 @@ void GenerateWrappers(const string& in_inFileName, const string& in_outFileName,
             "    /* CLU will only build this program the first time */" << endl <<
             "    /* CLU will release this program upon shutdown (cluRelease) */" << endl <<
             // pass a flag to the build API so it will know to manage the lifetime of the resulting cl_program
-            "    cl_program program = cluBuildSourceArray(" << sources.size() << ", src, \"" << CLU_MAGIC_BUILD_FLAG << "\", out_pStatus);" << endl <<
+            "    cl_program program = cluBuildSourceArray(" << sources.size() << ", src, 0, \"" << CLU_MAGIC_BUILD_FLAG << "\", out_pStatus);" << endl <<
             "    return program;" << endl <<
             "}" << endl << endl;
 
