@@ -499,8 +499,8 @@ void FindIncludes(string& out_src, stringstream& in_is, const StringList& in_inc
     {
         if (string::npos != tmp.find("#include"))
         {
-            unsigned int start = tmp.find_first_of('"');
-            unsigned int end = tmp.find_last_of('"');
+            string::size_type start = tmp.find_first_of('"');
+            string::size_type end = tmp.find_last_of('"');
             if (string::npos == start)
             {
                 start = tmp.find_first_of('<');
