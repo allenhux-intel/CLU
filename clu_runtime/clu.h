@@ -13,6 +13,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #ifndef __CLU_H
 #define __CLU_H
 
+// CLU uses deprecated clCreateCommandQueue
+#define CL_USE_DEPRECATED_OPENCL_2_0_APIS
+
 #ifdef APPLE
 #include <OpenCL/opencl.h>
 #else
@@ -129,14 +132,16 @@ cluGetBuildErrors(cl_program program);
 /* Build a program for all current devices from source */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
 cluBuildSource(const char* in_source,
-               size_t      source_length,  /* may be zero */
-               cl_int*     errcode_ret);   /* may be NULL */
+               size_t      source_length,   /* may be zero */
+               const char* compile_options, /* may be NULL */
+               cl_int*     errcode_ret);    /* may be NULL */
 
 /* Build a program for all current devices from binary */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
 cluBuildBinary(size_t               binary_length,
                const unsigned char* in_binary,
-               cl_int*              errcode_ret);   /* may be NULL */
+               const char*          compile_options, /* may be NULL */
+               cl_int*              errcode_ret);    /* may be NULL */
 
 /* Build a program for all current devices from an array of sources */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
@@ -157,12 +162,14 @@ cluBuildBinaryArray(cl_uint               num_binaries,
 /* Loads a source file and builds a program for all current devices */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
 cluBuildSourceFromFile(const char* file_name,
-                       cl_int*     errcode_ret); /* may be NULL */
+                       const char* compile_options, /* may be NULL */
+                       cl_int*     errcode_ret);    /* may be NULL */
 
 /* Loads a binary file and builds a program for all current devices */
 extern CLU_API_ENTRY cl_program CLU_API_CALL
 cluBuildBinaryFromFile(const char* file_name,
-                       cl_int*     errcode_ret); /* may be NULL */
+                       const char* compile_options, /* may be NULL */
+                       cl_int*     errcode_ret);    /* may be NULL */
 
 /* Allocate host memory aligned for optimal access and create a buffer using it */
 /* Aligned memory will be freed automatically by clReleaseMemObject() via clSetMemObjectDestructorCallback() */

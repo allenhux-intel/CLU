@@ -18,12 +18,12 @@ int main()
 {
     cl_int status = cluInitialize(0);
 
-    const char* pK = "kernel void Convert(global float* in_f, global half* out_f) {"
+    char* pK = "kernel void Convert(global float* in_f, global half* out_f) {"
         "    int gid = get_global_id(0);"
         //"out_f[gid] = in_f[gid]; }"; // no free float->half conversion
         "    vstore_half(in_f[gid], gid, out_f);}";
 
-    cl_program p = cluBuildSource(pK, 0, &status);
+    cl_program p = cluBuildSource(pK, 0, 0, &status);
     if (0 != status)
     {
         const char* err = cluGetBuildErrors(p);
