@@ -661,9 +661,6 @@ cl_program CLU_Runtime::BuildProgram(
 {
     cl_int status = CL_SUCCESS;
 
-    size_t* pLengths = 0;
-    unsigned char **pBinaries = 0;
-
     // FIXME: how do we know which binary goes to which device?
     // CLU abstracts the device array internally. Recommend using device type.
     // Note CLU does not really handle having more than 1 device of the same type, that is an advanced move.
@@ -676,7 +673,7 @@ cl_program CLU_Runtime::BuildProgram(
     }
 
     cl_context context = GetContext();
-    cl_program program = clCreateProgramWithBinary(context, in_numBinaries, m_deviceIds, pLengths, (const unsigned char **) pBinaries, 0, &status);
+    cl_program program = clCreateProgramWithBinary(context, in_numBinaries, m_deviceIds, in_binary_lengths, (const unsigned char **) in_binaries, 0, &status);
     OCL_VALIDATE(status);
 
     status = clBuildProgram(program, m_numDevices, m_deviceIds, in_buildOptions, 0, 0);
