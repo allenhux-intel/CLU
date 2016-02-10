@@ -324,26 +324,38 @@ cl_platform_id GetPlatformDefault(
 
 //-----------------------------------------------------------------------------
 // internal method to get a platform by vendor name string
+// CASE INSENSITIVE
 //-----------------------------------------------------------------------------
 cl_platform_id GetPlatformByVendor(cl_uint in_numPlatforms, const cl_platform_id* in_platforms,
-    const char* in_vendorName, cl_int* out_pStatus)
+    const char* in_vendorName, cl_device_type in_device_type, cl_int* out_pStatus)
 {
     const int BUFSIZE = 1024;
     char pBuf[BUFSIZE];
     cl_platform_id platform = 0;
+    std::string vendorName(in_vendorName);
+    std::transform(vendorName.begin(), vendorName.end(), vendorName.begin(), ::tolower);
 
     cl_uint i = 0;
-    for (; i < in_numPlatforms; ++i) 
+    for (; i < in_numPlatforms; ++i)
     {
         cl_int status = clGetPlatformInfo(in_platforms[i], CL_PLATFORM_VENDOR, BUFSIZE, pBuf, 0);
         OCL_VALIDATE(status);
         *out_pStatus = status;
 
-        // just get part of the vendor string right
-        if (0!=strstr(pBuf, in_vendorName))
+        if (CL_SUCCESS == status)
         {
-            platform = in_platforms[i];
-            break;
+            std::string platformVendor(pBuf);
+            std::transform(platformVendor.begin(), platformVendor.end(), platformVendor.begin(), ::tolower);
+
+            // just get part of the vendor string right
+            if (std::string::npos != platformVendor.find(vendorName))
+            {
+                platform = in_platforms[i];
+                if ((CL_DEVICE_TYPE_ALL != in_device_type) && (0 != GetPlatformDefault(1, &platform, in_device_type)))
+                {
+                    break;
+                }
+            }
         }
     }
     return platform;
@@ -399,7 +411,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
 
         if (in_params.vendor_name)
         {
-            m_platform = GetPlatformByVendor(numPlatforms, platforms, in_params.vendor_name, &status);
+            m_platform = GetPlatformByVendor(numPlatforms, platforms, in_params.vendor_name, deviceType, &status);
             OCL_VALIDATE(status);
             if (CL_SUCCESS != status) goto exit;
         }
@@ -534,7 +546,15 @@ cl_command_queue CLU_Runtime::GetCommandQueue(cl_device_type in_clDeviceType, cl
     if (0 == q)
     {
         cl_device_id deviceId = m_device_type_to_id.GetDevice(in_clDeviceType);
+
+#ifdef CL_API_SUFFIX__VERSION_2_0
+        // clCreateCommandQueue was deprecated in 2.0
+        cl_queue_properties propertyList[3] = { CL_QUEUE_PROPERTIES, m_queueProperties, 0 };
+        q = clCreateCommandQueueWithProperties(m_context, deviceId, propertyList, &status);
+#else
         q = clCreateCommandQueue(m_context, deviceId, m_queueProperties, &status);
+#endif
+
         OCL_VALIDATE(status);
 
         if (q)
