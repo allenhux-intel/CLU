@@ -138,11 +138,15 @@ public:
     template<typename T> void AddObject(T o);
 
     // common build function
-    cl_program   BuildProgram(cl_uint in_numStrings,
-                              const char** in_strings, const size_t* in_string_lengths,
+    cl_program   BuildProgram(cl_uint in_numSources,
+                              const char** in_sources, const size_t* in_source_lengths,
+                              const char* in_buildOptions, cl_int *out_pStatus);
+    cl_program   BuildProgram(cl_uint in_numBinaries,
+                              const size_t* in_binary_lengths, const unsigned char** in_binaries,
                               const char* in_buildOptions, cl_int *out_pStatus);
     const char*  GetBuildErrors(cl_program program);
 
+    cl_platform_id GetPlatform()                 {return m_platform;}
     cl_device_id GetDevice(cl_device_type in_clDeviceType);
     cl_command_queue GetCommandQueue(cl_device_type in_clDeviceType, cl_int* out_status);
     cl_context   GetContext()                    {return m_context;}
@@ -154,9 +158,10 @@ public:
 
     // used by code generator: build and has program on first call,
     // subsequently return hashed program
-    cl_program   HashProgram(cl_uint in_numStrings,
-                              const char** in_strings, const size_t* in_string_lengths,
-                              const char* in_buildOptions, cl_int *out_pStatus);
+    // hashed programs always use default build options
+    cl_program   HashProgram(cl_uint in_numSources,
+                              const char** in_sources, const size_t* in_source_lengths,
+                              cl_int *out_pStatus);
 
     // return an array of image formats supported in a given CL context
     const clu_image_format* GetImageFormats(cl_uint* out_pArraySize, cl_int* out_pStatus);
@@ -169,6 +174,7 @@ private:
     static CLU_Runtime g_runtime;
 
     bool             m_isInitialized;
+    cl_platform_id   m_platform; // default platform
     cl_context       m_context; // default context
     cl_command_queue m_commandQueue[CLU_MAX_NUM_DEVICES];
     cl_command_queue_properties m_queueProperties;
@@ -201,7 +207,7 @@ private:
     // support up to 4 queues (1 for each of 4 devices: cpu, gpu, accelerator, custom)
     cl_uint          m_numDevices;
     
-    // WARNING: do not try to use this with cl_device_type!
+    // WARNING: do not try to access this array using cl_device_type as the index!
     // it is filled in at context creation time
     // it is used for building programs and returning build errors
     cl_device_id     m_deviceIds[CLU_MAX_NUM_DEVICES];
@@ -246,6 +252,7 @@ template<typename T> void CLU_Runtime::AddObject(T t)
 //-----------------------------------------------------------------------------
 void CLU_Runtime::Reset()
 {
+    m_platform=0;
     m_context=0;
     m_numDevices=0;
     m_queueProperties = 0;
@@ -336,6 +343,7 @@ cl_platform_id GetPlatformByVendor(cl_uint in_numPlatforms, const cl_platform_id
         if (0!=strstr(pBuf, in_vendorName))
         {
             platform = in_platforms[i];
+            break;
         }
     }
     return platform;
@@ -389,21 +397,20 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
-        cl_platform_id platform = 0;
         if (in_params.vendor_name)
         {
-            platform = GetPlatformByVendor(numPlatforms, platforms, in_params.vendor_name, &status);
+            m_platform = GetPlatformByVendor(numPlatforms, platforms, in_params.vendor_name, &status);
             OCL_VALIDATE(status);
             if (CL_SUCCESS != status) goto exit;
         }
 
-        if (0 == platform)
+        if (0 == m_platform)
         {
-            platform = GetPlatformDefault(numPlatforms, platforms, deviceType);
+            m_platform = GetPlatformDefault(numPlatforms, platforms, deviceType);
         }
 
         // should have a platform now.
-        if (0 == platform)
+        if (0 == m_platform)
         {
             status = CL_DEVICE_NOT_FOUND;
             goto exit;
@@ -411,7 +418,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
 
         // get # of devices & device Ids
         // here we have a platform, no context yet
-        status = clGetDeviceIDs(platform, deviceType, 0, 0, &m_numDevices);
+        status = clGetDeviceIDs(m_platform, deviceType, 0, 0, &m_numDevices);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -421,7 +428,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         {
             m_numDevices = CLU_MAX_NUM_DEVICES;
         }
-        status = clGetDeviceIDs(platform, deviceType, m_numDevices, m_deviceIds, 0);
+        status = clGetDeviceIDs(m_platform, deviceType, m_numDevices, m_deviceIds, 0);
         OCL_VALIDATE(status);
         if (CL_SUCCESS != status) goto exit;
 
@@ -453,7 +460,7 @@ cl_int CLU_Runtime::Initialize(const clu_initialize_params& in_params)
         } // end if there are default context properties
         properties[propNum] = CL_CONTEXT_PLATFORM;
         ++propNum;
-        properties[propNum] = (cl_context_properties)platform;
+        properties[propNum] = (cl_context_properties)m_platform;
         ++propNum;
         properties[propNum] = (cl_context_properties)0;
 
@@ -580,21 +587,24 @@ const char* CLU_Runtime::GetBuildErrors(cl_program in_program)
 // Build a program, called by generated code
 //-----------------------------------------------------------------------------
 cl_program CLU_Runtime::HashProgram(
-    cl_uint in_numStrings, const char** in_strings, const size_t* in_string_lengths,
-    const char* in_buildOptions,
+    cl_uint in_numSources,
+    const char** in_sources,
+    const size_t* in_source_lengths,
     cl_int*     out_pStatus)
 {
     cl_int status = CL_SUCCESS;
 
     // because this is called by generated code, we can be confident that the
-    // string passed in is at an address that is constant for the lifetime of
+    // source passed in is at an address that is constant for the lifetime of
     // the application. Hence, it's suitable for use as a hash key:
-    const void* hashKey = in_strings;
+    const void* hashKey = in_sources;
 
     cl_program program = m_programMap[hashKey]; // find program in hash
     if (0 == program) // hasn't been built yet?
     {
-        program = BuildProgram(in_numStrings, in_strings, in_string_lengths, in_buildOptions, &status);
+        // programs hashed by CLU always use the default build options
+        const char* buildOptions = 0;
+        program = BuildProgram(in_numSources, in_sources, in_source_lengths, buildOptions, &status);
         if (program) // if successful
         {
             AddObject(program); // manage lifetime
@@ -613,14 +623,57 @@ cl_program CLU_Runtime::HashProgram(
 // Build a program
 //-----------------------------------------------------------------------------
 cl_program CLU_Runtime::BuildProgram(
-    cl_uint in_numStrings, const char** in_strings, const size_t* in_string_lengths,
+    cl_uint in_numSources,
+    const char** in_sources,
+    const size_t* in_source_lengths,
     const char* in_buildOptions,
     cl_int*     out_pStatus)
 {
     cl_int status = CL_SUCCESS;
 
     cl_context context = GetContext();
-    cl_program program = clCreateProgramWithSource(context, in_numStrings, in_strings, in_string_lengths, &status);
+    cl_program program = clCreateProgramWithSource(context, in_numSources, in_sources, in_source_lengths, &status);
+    OCL_VALIDATE(status);
+
+    // no build options? use default.
+    if (0 == in_buildOptions)
+    {
+        in_buildOptions = GetBuildOptions();
+    }
+    status = clBuildProgram(program, m_numDevices, m_deviceIds, in_buildOptions, 0, 0);
+
+    OCL_VALIDATE(status);
+
+    if (out_pStatus)
+    {
+        *out_pStatus = status;
+    }
+
+    return program;
+}
+
+cl_program CLU_Runtime::BuildProgram(
+    cl_uint in_numBinaries,
+    const size_t* in_binary_lengths,
+    const unsigned char** in_binaries,
+    const char* in_buildOptions,
+    cl_int*     out_pStatus)
+{
+    cl_int status = CL_SUCCESS;
+
+    // FIXME: how do we know which binary goes to which device?
+    // CLU abstracts the device array internally. Recommend using device type.
+    // Note CLU does not really handle having more than 1 device of the same type, that is an advanced move.
+    // for "advanced" context moves, initialize CLU with an existing context.
+
+    // FIXME: just protect from obvious crashes for now
+    if (in_numBinaries > m_numDevices)
+    {
+        in_numBinaries = m_numDevices;
+    }
+
+    cl_context context = GetContext();
+    cl_program program = clCreateProgramWithBinary(context, in_numBinaries, m_deviceIds, in_binary_lengths, (const unsigned char **) in_binaries, 0, &status);
     OCL_VALIDATE(status);
 
     status = clBuildProgram(program, m_numDevices, m_deviceIds, in_buildOptions, 0, 0);
@@ -654,9 +707,10 @@ cl_uint CLU_Runtime::GetBufferAlignment()
         {
             cl_uint deviceAlign = 0;
             clGetDeviceInfo(pDevices[i], CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceAlign, 0);
+            deviceAlign /= 8; // returns bits! want bytes.
             if (deviceAlign > m_bufferAlignment)
             {
-                m_bufferAlignment = deviceAlign / 8; // returns bits! want bytes.
+                m_bufferAlignment = deviceAlign;
             }
         }
         delete [] pDevices;
@@ -743,6 +797,15 @@ cluGetDevice(cl_device_type in_clDeviceType)
 }
 
 //-----------------------------------------------------------------------------
+// Return cl_platform_id
+//   may have been chosen by the runtime, or provided with cluInitialize
+//-----------------------------------------------------------------------------
+cl_platform_id CLU_API_CALL cluGetPlatform()
+{
+    return CLU_Runtime::Get().GetPlatform();
+}
+
+//-----------------------------------------------------------------------------
 // Return cl_command_queue associated with cl_device_id
 //-----------------------------------------------------------------------------
 cl_command_queue CLU_API_CALL
@@ -788,26 +851,26 @@ const char * CLU_API_CALL cluGetBuildErrors(cl_program in_program)
 }
 
 //-----------------------------------------------------------------------------
-// Build a program for all current devices from a string
+// Build a program for all current devices from source
 //-----------------------------------------------------------------------------
 cl_program CLU_API_CALL
-cluBuildSource(const char* in_string,
-              size_t string_length, /* may be NULL */
+cluBuildSource(const char* in_source,
+              size_t source_length, /* may be zero */
+              const char* in_buildOptions, /* may be NULL */
               cl_int * errcode_ret) /* may be NULL */
 {
     cl_program program = 0;
     cl_int status = CL_INVALID_VALUE;
 
     size_t* pLength = 0;
-    if (0 != string_length)
+    if (0 != source_length)
     {
-        pLength = &string_length;
+        pLength = &source_length;
     }
 
     try
     {
-        const char* buildOptions = CLU_Runtime::Get().GetBuildOptions();
-        program = CLU_Runtime::Get().BuildProgram(1, &in_string, pLength, buildOptions, &status);
+        program = CLU_Runtime::Get().BuildProgram(1, &in_source, pLength, in_buildOptions, &status);
     }
     catch (...) // internal error, e.g. thrown by STL
     {
@@ -822,13 +885,48 @@ cluBuildSource(const char* in_string,
 }
 
 //-----------------------------------------------------------------------------
-// Build a program for all current devices from a string
+// Build a program for all current devices from binary
+//-----------------------------------------------------------------------------
+cl_program CLU_API_CALL
+cluBuildBinary(size_t binary_length,
+              const unsigned char* in_binary,
+              const char* in_buildOptions, /* may be NULL */
+              cl_int * errcode_ret) /* may be NULL */
+{
+    cl_program program = 0;
+    cl_int status = CL_INVALID_VALUE;
+
+    size_t* pLength = 0;
+    if (0 != binary_length)
+    {
+        pLength = &binary_length;
+    }
+
+    try
+    {
+        program = CLU_Runtime::Get().BuildProgram(1, pLength, &in_binary, in_buildOptions, &status);
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_BUILD_PROGRAM_FAILURE;
+    }
+
+    if (errcode_ret)
+    {
+        *errcode_ret = status;
+    }
+    return program;
+}
+
+//-----------------------------------------------------------------------------
+// Build a program for all current devices from source
 //   can override global build options
 //-----------------------------------------------------------------------------
 cl_program CLU_API_CALL
-cluBuildSourceArray(cl_uint num_strings,
-                   const char** strings,
-                   const char*  compile_options, /* may be NULL */
+cluBuildSourceArray(cl_uint num_sources,
+                   const char** sources,
+                   const size_t* source_lengths, /* may be NULL */
+                   const char*  in_buildOptions, /* may be NULL */
                    cl_int * errcode_ret)         /* may be NULL */
 {
     cl_program program = 0;
@@ -837,22 +935,46 @@ cluBuildSourceArray(cl_uint num_strings,
     {
         // was this build called by the clu code generator?
         // if so, we should be smart about handling the program object
-        if (0 == strncmp(CLU_MAGIC_BUILD_FLAG, compile_options, strlen(CLU_MAGIC_BUILD_FLAG)))
+        if (0 == strncmp(CLU_MAGIC_BUILD_FLAG, in_buildOptions, strlen(CLU_MAGIC_BUILD_FLAG)))
         {
-            compile_options = CLU_Runtime::Get().GetBuildOptions();
             // this will retrieve it from a hash or build it if it's not there:
-            program = CLU_Runtime::Get().HashProgram(num_strings, strings, 0,
-                compile_options, &status);
+            program = CLU_Runtime::Get().HashProgram(num_sources, sources, source_lengths, &status);
         }
         else
         {
-            if (0 == compile_options)
-            {
-                compile_options = CLU_Runtime::Get().GetBuildOptions();
-            }
-            program = CLU_Runtime::Get().BuildProgram(num_strings, strings, 0,
-                compile_options, &status);
+            program = CLU_Runtime::Get().BuildProgram(num_sources, sources, source_lengths,
+                in_buildOptions, &status);
         }
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_BUILD_PROGRAM_FAILURE;
+    }
+
+    if (errcode_ret)
+    {
+        *errcode_ret = status;
+    }
+    return program;
+}
+
+//-----------------------------------------------------------------------------
+// Build a program for all current devices from binary
+//   can override global build options
+//-----------------------------------------------------------------------------
+cl_program CLU_API_CALL
+cluBuildBinaryArray(cl_uint num_binaries,
+                   const size_t* binary_lengths,
+                   const unsigned char** binaries,
+                   const char*  in_buildOptions, /* may be NULL */
+                   cl_int * errcode_ret)         /* may be NULL */
+{
+    cl_program program = 0;
+    cl_int status = CL_INVALID_VALUE;
+    try
+    {
+        program = CLU_Runtime::Get().BuildProgram(num_binaries, binary_lengths, binaries,
+            in_buildOptions, &status);
     }
     catch (...) // internal error, e.g. thrown by STL
     {
@@ -870,7 +992,9 @@ cluBuildSourceArray(cl_uint num_strings,
 // convert a source file into a cl_program
 //-----------------------------------------------------------------------------
 cl_program CLU_API_CALL
-cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
+cluBuildSourceFromFile(const char* in_pFileName,
+                       const char* in_buildOptions, /* may be NULL */
+                       cl_int * errcode_ret) /* may be NULL */
 {
     cl_int status = CL_INVALID_VALUE;
     cl_program program = 0;
@@ -878,11 +1002,46 @@ cluBuildSourceFromFile(const char* in_pFileName, cl_int * errcode_ret)
     {
         if (in_pFileName)
         {
-            std::ifstream ifs(in_pFileName);
+            std::ifstream ifs(in_pFileName, std::ios::in);
             if (ifs.is_open())
             {
                 std::string s((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-                program = cluBuildSource(s.c_str(), s.size(), &status);
+                program = cluBuildSource((const char *) s.c_str(), s.size(), in_buildOptions, &status);
+                ifs.close();
+            }
+        } // end if non-null file name string
+    }
+    catch (...) // internal error, e.g. thrown by STL
+    {
+        status = CL_OUT_OF_HOST_MEMORY;
+    }
+
+    if (errcode_ret)
+    {
+        *errcode_ret = status;
+    }
+    return program;
+}
+
+//-----------------------------------------------------------------------------
+// convert a binary file into a cl_program
+//-----------------------------------------------------------------------------
+cl_program CLU_API_CALL
+cluBuildBinaryFromFile(const char* in_pFileName,
+                       const char* in_buildOptions, /* may be NULL */
+                       cl_int * errcode_ret) /* may be NULL */
+{
+    cl_int status = CL_INVALID_VALUE;
+    cl_program program = 0;
+    try
+    {
+        if (in_pFileName)
+        {
+            std::ifstream ifs(in_pFileName, std::ios::in | std::ios::binary);
+            if (ifs.is_open())
+            {
+                std::string s((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+                program = cluBuildBinary(s.size(), (const unsigned char *) s.c_str(), in_buildOptions, &status);
                 ifs.close();
             }
         } // end if non-null file name string
@@ -1243,7 +1402,7 @@ const clu_image_format* CLU_Runtime::GetImageFormats(cl_uint* out_pArraySize, cl
                         bool newFormat = (iter == formatMap.end());
                         if (newFormat)
                         {
-                            index = m_imageFormats.size();
+                            index = (cl_uint)m_imageFormats.size();
                             m_imageFormats.resize(index+1);
                             formatMap[formats[f]] = index;
                             m_imageFormats[index].pixelFormat = formats[f];
@@ -1274,7 +1433,7 @@ const clu_image_format* CLU_Runtime::GetImageFormats(cl_uint* out_pArraySize, cl
 
     delete [] formats;
 
-    *out_pArraySize = m_imageFormats.size();
+    *out_pArraySize = (cl_uint)m_imageFormats.size();
     return &m_imageFormats[0];
 }
 
@@ -1439,3 +1598,4 @@ const char* CLU_API_CALL cluPrintChannelType(cl_channel_type in_channelType)
 		break;
 	}
 }
+
