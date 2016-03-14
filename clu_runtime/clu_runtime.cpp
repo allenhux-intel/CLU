@@ -549,8 +549,16 @@ cl_command_queue CLU_Runtime::GetCommandQueue(cl_device_type in_clDeviceType, cl
 
 #ifdef CL_API_SUFFIX__VERSION_2_0
         // clCreateCommandQueue was deprecated in 2.0
-        cl_queue_properties propertyList[3] = { CL_QUEUE_PROPERTIES, m_queueProperties, 0 };
-        q = clCreateCommandQueueWithProperties(m_context, deviceId, propertyList, &status);
+        // We still need to check if the current platform only supports 1.x, though.
+        clu_platform_info info = cluGetPlatformInfo(m_platform, &status);
+        OCL_VALIDATE(status);
+
+        if (info.version && strstr(info.version, "OpenCL 1.")) {
+            q = clCreateCommandQueue(m_context, deviceId, m_queueProperties, &status);
+        } else {
+            cl_queue_properties propertyList[3] = {CL_QUEUE_PROPERTIES, m_queueProperties, 0};
+            q = clCreateCommandQueueWithProperties(m_context, deviceId, propertyList, &status);
+        }
 #else
         q = clCreateCommandQueue(m_context, deviceId, m_queueProperties, &status);
 #endif
