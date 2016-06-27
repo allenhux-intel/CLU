@@ -449,7 +449,16 @@ void FindKernels(const string& src, KernelList& out_kernels)
             // structure to be returned containing kernel name & parameters
             KernelStrings kernelStrings;
 
-            srcIndex = tokenizer.SkipTokens("__attribute__", ")");
+            // handle multiple attributes
+            while (true)
+            {
+                int attrIndex = tokenizer.SkipTokens("__attribute__", ")");
+
+                if (attrIndex == srcIndex)
+                    break;
+
+                srcIndex = attrIndex;
+            }
 
             int index = GetParameterString(src, srcIndex, kernelStrings.m_parameters);
             if (0 == index)
