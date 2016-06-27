@@ -14,7 +14,10 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #define __CLU_H
 
 // CLU uses deprecated clCreateCommandQueue
+// In older SDKs, clCreateCommandQueue was associated with the following deprecation flag:
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
+// Khronos corrected the flag definition, so later SDKs use the following:
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
 #ifdef APPLE
 #include <OpenCL/opencl.h>
