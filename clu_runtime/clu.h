@@ -26,9 +26,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 #endif
 
 #ifdef _MSC_VER
-  #define INLINE __inline /* "inline" not supported for C files in VS2010 */
+  #define CLU_INLINE __inline /* "inline" not supported for C files in VS2010 */
 #else
-  #define INLINE inline   /* use standard inline */
+  #define CLU_INLINE inline   /* use standard inline */
 #endif
 
 /******************************************************************************/
@@ -190,25 +190,25 @@ cluWaitOnAnyEvent(const cl_event* event_list,
 /********************************************************************************************************/
 /* APIs INLINEd for performance                                                                         */
 /********************************************************************************************************/
-INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange1(size_t global_dim_1, size_t local_dim_1, size_t offset_1)
+CLU_INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange1(size_t global_dim_1, size_t local_dim_1, size_t offset_1)
 {
     clu_nd_range range = {1, {global_dim_1, 0, 0}, {local_dim_1, 0, 0}, {offset_1, 0, 0}};
     return range;
 }
 
-INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange2(size_t global_dim_1, size_t global_dim_2, size_t local_dim_1, size_t local_dim_2, size_t offset_1, size_t offset_2)
+CLU_INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange2(size_t global_dim_1, size_t global_dim_2, size_t local_dim_1, size_t local_dim_2, size_t offset_1, size_t offset_2)
 {
     clu_nd_range range = {2, {global_dim_1, global_dim_2, 0}, {local_dim_1, local_dim_2, 0}, {offset_1, offset_2, 0}};
     return range;
 }
 
-INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange3(size_t global_dim_1, size_t global_dim_2, size_t global_dim_3, size_t local_dim_1, size_t local_dim_2, size_t local_dim_3, size_t offset_1, size_t offset_2, size_t offset_3)
+CLU_INLINE CLU_API_ENTRY clu_nd_range CLU_API_CALL cluNDRange3(size_t global_dim_1, size_t global_dim_2, size_t global_dim_3, size_t local_dim_1, size_t local_dim_2, size_t local_dim_3, size_t offset_1, size_t offset_2, size_t offset_3)
 {
     clu_nd_range range = {3, {global_dim_1, global_dim_2, global_dim_3}, {local_dim_1, local_dim_2, local_dim_3}, {offset_1, offset_2, offset_3}};
     return range;
 }
 
-INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
+CLU_INLINE CLU_API_ENTRY clu_enqueue_params cluGetDefaultParams()
 {
     clu_enqueue_params p = {0};
     return p;

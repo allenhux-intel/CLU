@@ -650,7 +650,7 @@ public:
         // custom function to get "object" containing structure and pointer to enqueue function
         m_outFile <<
             "/* function to initialize structure and create kernel from source */" << endl <<
-            "INLINE " << structName << " " << createName << "(cl_int * errcode_ret)" << endl <<
+            "CLU_INLINE " << structName << " " << createName << "(cl_int * errcode_ret)" << endl <<
             "{"                                                      << endl <<
             "    cl_int status;"                                     << endl <<
             "    " << structName << " s;"                            << endl <<
@@ -676,7 +676,7 @@ public:
         parameters += ")";
 
         m_outFile <<
-            "INLINE cl_int " << enqueueName << parameters << endl <<
+            "CLU_INLINE cl_int " << enqueueName << parameters << endl <<
             "{" << endl <<
             "    cl_uint status = CL_SUCCESS;" << endl;
 
@@ -945,7 +945,7 @@ void GenerateWrappers(const string& in_inFileName, const string& in_outFileName,
         // function to build program from stringified sources
         outFile <<
             "/* This function is shared by all " CLU_PREFIX_CREATE "* functions below */" << endl <<
-            "INLINE cl_program " << getProgramName << "(cl_int* out_pStatus)" << endl <<
+            "CLU_INLINE cl_program " << getProgramName << "(cl_int* out_pStatus)" << endl <<
             "{" << endl <<
             "    static const char* src[" << sources.size() << "] = {";
 
